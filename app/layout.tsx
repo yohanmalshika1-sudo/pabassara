@@ -1,0 +1,21 @@
+import './globals.css';
+import { ReactNode } from 'react';
+
+export const metadata = {
+  title: 'ශ්‍රී බෝධිරුක්ඛාරාමය - ගණිහිමුල්ල දෙවලපොල',
+  description: 'ශ්‍රී බෝධිරුක්ඛාරාම විහාරස්ථානයේ නිල වෙබ් අඩවිය',
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="si">
+      <body>
+        <div className="buddhist-flag-bar"></div>
+        {children}
+        <footer className="text-center py-6 bg-slate-900 text-white text-sm mt-12">
+          © 2026 ශ්‍රී බෝධිරුක්ඛාරාමය. All Rights Reserved.
+        </footer>
+      </body>
+    </html>
+  );
+}
