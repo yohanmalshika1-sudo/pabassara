@@ -573,7 +573,7 @@ export default function CompleteTempleApp() {
 
     if (supabase && adminEmail) {
       const { error } = await supabase.auth.signInWithPassword({
-        email: adminEmail,
+        email: adminEmail.trim().toLowerCase(),
         password: inputPassword,
       });
 
@@ -584,6 +584,8 @@ export default function CompleteTempleApp() {
         setInputPassword('');
         return;
       }
+      alert(`Login failed: ${error.message}`);
+      return;
     }
     alert('Email හෝ password වැරදියි. Supabase Authentication user එක පරීක්ෂා කරන්න.');
   };
