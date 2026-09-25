@@ -64,6 +64,20 @@ interface MusicTrack {
   createdAt: string;
 }
 
+interface SiteTheme {
+  id: string;
+  name: string;
+  background: string;
+  accent: string;
+  text: string;
+}
+
+const DEFAULT_THEMES: SiteTheme[] = [
+  { id: 'temple-night', name: 'Temple Night', background: '#030712', accent: '#f59e0b', text: '#f8fafc' },
+  { id: 'lotus-dawn', name: 'Lotus Dawn', background: '#fff7ed', accent: '#c2410c', text: '#431407' },
+  { id: 'forest-dhamma', name: 'Forest Dhamma', background: '#052e16', accent: '#facc15', text: '#f0fdf4' },
+];
+
 type SiteContent = Partial<{
   categories: Category[];
   customPages: CustomPage[];
@@ -95,6 +109,13 @@ type SiteContent = Partial<{
   pujaNoonImg: string;
   pujaEveningImg: string;
   musicTracks: MusicTrack[];
+  themes: SiteTheme[];
+  selectedThemeId: string;
+  loadingEnabled: boolean;
+  loadingDuration: number;
+  loadingTextSi: string;
+  splashImage: string;
+  background3dEnabled: boolean;
 }>;
 
 const DEFAULT_CATEGORIES: Category[] = [
@@ -118,9 +139,6 @@ export default function CompleteTempleApp() {
   // Admin Auth & Role System
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentRole, setCurrentRole] = useState<AdminRole>('super_admin');
-  const [adminPassword, setAdminPassword] = useState('1234');
-  const [editorPassword, setEditorPassword] = useState('5678');
-  const [dhammaPassword, setDhammaPassword] = useState('9012');
   const [loginRole, setLoginRole] = useState<AdminRole>('super_admin');
   const [inputPassword, setInputPassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -133,6 +151,17 @@ export default function CompleteTempleApp() {
   const [templeNameEn, setTempleNameEn] = useState('Sri Bodhirukkharamaya Maha Viharaya');
   const [templeLocationSi, setTempleLocationSi] = useState('ගණිහිමුල්ල, දෙවලපොල');
   const [templeLocationEn, setTempleLocationEn] = useState('Ganihimulla, Devalapola');
+  const [themes, setThemes] = useState<SiteTheme[]>(DEFAULT_THEMES);
+  const [selectedThemeId, setSelectedThemeId] = useState('temple-night');
+  const [loadingEnabled, setLoadingEnabled] = useState(true);
+  const [loadingDuration, setLoadingDuration] = useState(1200);
+  const [loadingTextSi, setLoadingTextSi] = useState('සාදරයෙන් පිළිගනිමු');
+    const [background3dEnabled, setBackground3dEnabled] = useState(true);
+  const [isLoadingScreenVisible, setIsLoadingScreenVisible] = useState(true);
+  const [themeName, setThemeName] = useState('');
+  const [themeBackground, setThemeBackground] = useState('#030712');
+  const [themeAccent, setThemeAccent] = useState('#f59e0b');
+  const [themeText, setThemeText] = useState('#f8fafc');
 
   // Daily Verse / Dhamma Thought State
   const [dailyVerseSi, setDailyVerseSi] = useState('නහි වේරේන වේරානි සම්මන්තීධ කුදාචනං | අවේරේන ච සම්මන්ති ඒස ධම්මෝ සනන්තනෝ.');
@@ -216,6 +245,9 @@ export default function CompleteTempleApp() {
   const [musicVolume, setMusicVolume] = useState(0.8);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'idle' | 'loading' | 'saved' | 'error'>('idle');
+  const [cloudSyncError, setCloudSyncError] = useState('');
+  const [cloudSyncRetry, setCloudSyncRetry] = useState(0);
 
   // Ticker
   const [tickerText, setTickerText] = useState('2026 වසර සඳහා දහම් පාසලට නවක සිසුන් ඇතුළත් කරගැනීම දැනට සිදුකෙරේ.');
@@ -275,6 +307,13 @@ export default function CompleteTempleApp() {
       setMusicTracks(content.musicTracks);
       setActiveMusicId(content.musicTracks[0]?.id || '');
     }
+    if (content.themes) setThemes(content.themes);
+    if (content.selectedThemeId) setSelectedThemeId(content.selectedThemeId);
+    if (typeof content.loadingEnabled === 'boolean') setLoadingEnabled(content.loadingEnabled);
+    if (content.loadingDuration) setLoadingDuration(content.loadingDuration);
+    if (content.loadingTextSi) setLoadingTextSi(content.loadingTextSi);
+    if (content.splashImage) setSplashImage(content.splashImage);
+    if (typeof content.background3dEnabled === 'boolean') setBackground3dEnabled(content.background3dEnabled);
   };
 
   // Load Storage Configurations
@@ -330,6 +369,18 @@ export default function CompleteTempleApp() {
       setHeroCover(m.heroCover || '');
       setBadgeLogo(m.badgeLogo || '');
       setTimerCover(m.timerCover || '');
+      setSplashImage(m.splashImage || splashImage);
+      setBackground3dEnabled(m.background3dEnabled !== false);
+    }
+
+    const savedTheme = localStorage.getItem('temple_theme_v20');
+    if (savedTheme) {
+      const theme = JSON.parse(savedTheme);
+      if (theme.themes?.length) setThemes(theme.themes);
+      setSelectedThemeId(theme.selectedThemeId || 'temple-night');
+      setLoadingEnabled(theme.loadingEnabled !== false);
+      setLoadingDuration(Number(theme.loadingDuration) || 1200);
+      setLoadingTextSi(theme.loadingTextSi || 'සාදරයෙන් පිළිගනිමු');
     }
 
     const savedVerse = localStorage.getItem('temple_verse_v20');
@@ -360,15 +411,6 @@ export default function CompleteTempleApp() {
       setActiveMusicId(tracks[0]?.id || '');
     }
 
-    // Load Saved Passwords
-    const savedPasswords = localStorage.getItem('temple_passwords_v20');
-    if (savedPasswords) {
-      const p = JSON.parse(savedPasswords);
-      if (p.admin) setAdminPassword(p.admin);
-      if (p.editor) setEditorPassword(p.editor);
-      if (p.dhamma) setDhammaPassword(p.dhamma);
-    }
-
     const savedSlips = localStorage.getItem('temple_slips_v20');
     if (savedSlips) setDonationSlips(JSON.parse(savedSlips));
 
@@ -382,18 +424,53 @@ export default function CompleteTempleApp() {
           setIsAdmin(true);
           setAdminEmail(sessionData.session.user.email || '');
         }
-        const { data: cloudRow } = await supabase
+        const { data: cloudRow, error: cloudError } = await supabase
           .from('site_content')
           .select('content')
           .eq('id', 'main')
           .maybeSingle();
         if (cloudRow?.content) applySiteContent(cloudRow.content as SiteContent);
+        if (cloudError) {
+          setCloudSyncStatus('error');
+          setCloudSyncError(cloudError.message);
+        }
         cloudReadyRef.current = true;
       })();
     } else {
       cloudReadyRef.current = true;
     }
   }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+    const channel = client
+      .channel('site-content-updates')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'site_content', filter: 'id=eq.main' },
+        payload => {
+          const nextContent = payload.new?.content;
+          if (nextContent && typeof nextContent === 'object') {
+            applySiteContent(nextContent as SiteContent);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void client.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!loadingEnabled) {
+      setIsLoadingScreenVisible(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setIsLoadingScreenVisible(false), loadingDuration);
+    return () => window.clearTimeout(timer);
+  }, [loadingEnabled, loadingDuration]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Event Timer Calculation
@@ -448,8 +525,29 @@ export default function CompleteTempleApp() {
       ctx.drawImage(img, -img.width / 2, -img.height / 2);
 
       const processedBase64 = canvas.toDataURL('image/jpeg', 0.9);
-      onImageEditedCallback(processedBase64);
-      setRawImageForEdit(null);
+      void (async () => {
+        let imageUrl = processedBase64;
+        try {
+          if (supabase) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData.session) {
+              const imageBlob = await fetch(processedBase64).then(response => response.blob());
+              const filePath = `admin/${crypto.randomUUID()}.jpg`;
+              const { error: uploadError } = await supabase.storage
+                .from('temple-media')
+                .upload(filePath, imageBlob, { contentType: 'image/jpeg', upsert: false });
+              if (uploadError) throw uploadError;
+              imageUrl = supabase.storage.from('temple-media').getPublicUrl(filePath).data.publicUrl;
+            }
+          }
+          onImageEditedCallback(imageUrl);
+        } catch (error) {
+          setCloudSyncError(error instanceof Error ? error.message : 'Image upload failed');
+          onImageEditedCallback(processedBase64);
+        } finally {
+          setRawImageForEdit(null);
+        }
+      })();
     };
   };
 
@@ -468,6 +566,11 @@ export default function CompleteTempleApp() {
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!supabase || !adminEmail) {
+      alert('Cloud admin login සඳහා Supabase email එකක් සහ නිවැරදි Supabase configuration එකක් අවශ්‍යයි.');
+      return;
+    }
+
     if (supabase && adminEmail) {
       const { error } = await supabase.auth.signInWithPassword({
         email: adminEmail,
@@ -482,20 +585,7 @@ export default function CompleteTempleApp() {
         return;
       }
     }
-
-    let valid = false;
-    if (loginRole === 'super_admin' && inputPassword === adminPassword) valid = true;
-    if (loginRole === 'editor' && inputPassword === editorPassword) valid = true;
-    if (loginRole === 'dhamma_admin' && inputPassword === dhammaPassword) valid = true;
-
-    if (valid) {
-      setIsAdmin(true);
-      setCurrentRole(loginRole);
-      setShowLoginModal(false);
-      setInputPassword('');
-    } else {
-      alert('ඇතුළත් කළ මුරපදය වැරදියි. නැවත උත්සාහ කරන්න.');
-    }
+    alert('Email හෝ password වැරදියි. Supabase Authentication user එක පරීක්ෂා කරන්න.');
   };
 
   const handleAdminLogout = async () => {
@@ -551,17 +641,6 @@ export default function CompleteTempleApp() {
     setCategorySi('');
     setCategoryEn('');
     setCategoryIcon('📌');
-  };
-
-  // Save Passwords Functionality
-  const savePasswords = (e: React.FormEvent) => {
-    e.preventDefault();
-    localStorage.setItem('temple_passwords_v20', JSON.stringify({
-      admin: adminPassword,
-      editor: editorPassword,
-      dhamma: dhammaPassword,
-    }));
-    alert('සියලුම මුරපද (Passwords) සාර්ථකව යාවත්කාලීන කර Save කරන ලදී!');
   };
 
   // YouTube Helpers
@@ -696,7 +775,7 @@ export default function CompleteTempleApp() {
     }));
     localStorage.setItem('temple_categories_v20', JSON.stringify(categories));
     localStorage.setItem('temple_media_v20', JSON.stringify({
-      bgWallpaper, heroCover, badgeLogo, timerCover
+      bgWallpaper, heroCover, badgeLogo, timerCover, splashImage, background3dEnabled
     }));
     localStorage.setItem('temple_verse_v20', JSON.stringify({
       verse: dailyVerseSi, meaning: dailyVerseMeaningSi
@@ -706,7 +785,28 @@ export default function CompleteTempleApp() {
       morningImg: pujaMorningImg, noonImg: pujaNoonImg, eveningImg: pujaEveningImg
     }));
     localStorage.setItem('temple_music_v20', JSON.stringify(musicTracks));
+    localStorage.setItem('temple_theme_v20', JSON.stringify({ themes, selectedThemeId, loadingEnabled, loadingDuration, loadingTextSi, splashImage, background3dEnabled }));
     alert('සියලුම සැකසුම් සාර්ථකව යාවත්කාලීන විය!');
+  };
+
+  const addTheme = () => {
+    if (!themeName.trim()) return alert('Theme නමක් ඇතුළත් කරන්න.');
+    const theme: SiteTheme = {
+      id: `theme_${crypto.randomUUID()}`,
+      name: themeName.trim(),
+      background: themeBackground,
+      accent: themeAccent,
+      text: themeText,
+    };
+    setThemes(current => [...current, theme]);
+    setSelectedThemeId(theme.id);
+    setThemeName('');
+  };
+
+  const deleteTheme = (id: string) => {
+    if (DEFAULT_THEMES.some(theme => theme.id === id)) return alert('Default theme මකා දැමිය නොහැක.');
+    setThemes(current => current.filter(theme => theme.id !== id));
+    if (selectedThemeId === id) setSelectedThemeId(DEFAULT_THEMES[0].id);
   };
 
   const saveMusicTrack = () => {
@@ -930,6 +1030,8 @@ export default function CompleteTempleApp() {
     return studentEnrollments.filter(s => s.status === studentFilter);
   }, [studentEnrollments, studentFilter]);
 
+  const selectedTheme = themes.find(theme => theme.id === selectedThemeId) || DEFAULT_THEMES[0];
+
   const siteContent = useMemo<SiteContent>(() => ({
     categories,
     customPages,
@@ -961,48 +1063,89 @@ export default function CompleteTempleApp() {
     pujaNoonImg,
     pujaEveningImg,
     musicTracks,
+    themes,
+    selectedThemeId,
+    loadingEnabled,
+    loadingDuration,
+    loadingTextSi,
+    splashImage,
+    background3dEnabled,
   }), [
     categories, customPages, posts, templeNameSi, templeNameEn, templeLocationSi,
     templeLocationEn, tickerText, eventTitleSi, eventTitleEn, eventTargetDate,
     bankName, bankAccountName, bankAccountNumber, bankBranch, isLiveStreaming,
     liveStreamUrl, bgWallpaper, heroCover, badgeLogo, timerCover, dailyVerseSi,
     dailyVerseMeaningSi, pujaMorning, pujaNoon, pujaEvening, pujaMorningImg,
-    pujaNoonImg, pujaEveningImg, musicTracks,
+    pujaNoonImg, pujaEveningImg, musicTracks, themes, selectedThemeId,
+    loadingEnabled, loadingDuration, loadingTextSi, splashImage, background3dEnabled,
   ]);
 
   useEffect(() => {
     if (!supabase || !isAdmin || !cloudReadyRef.current) return;
     const client = supabase;
     const syncTimer = window.setTimeout(async () => {
+      setCloudSyncStatus('loading');
       const { data: sessionData } = await client.auth.getSession();
-      if (!sessionData.session) return;
-      await client.from('site_content').upsert({
+      if (!sessionData.session) {
+        setCloudSyncStatus('error');
+        setCloudSyncError('Admin Supabase session is missing. Login again.');
+        return;
+      }
+      const { error } = await client.from('site_content').upsert({
         id: 'main',
         content: siteContent,
         updated_at: new Date().toISOString(),
       });
+      if (error) {
+        setCloudSyncStatus('error');
+        setCloudSyncError(error.message);
+      } else {
+        setCloudSyncStatus('saved');
+        setCloudSyncError('');
+      }
     }, 700);
     return () => window.clearTimeout(syncTimer);
-  }, [isAdmin, siteContent]);
+  }, [cloudSyncRetry, isAdmin, siteContent]);
 
   return (
     <div
       className={`min-h-screen font-sans pb-32 transition-colors duration-300 ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}
       style={{
-        backgroundColor: isDarkMode ? '#030712' : '#f8fafc',
+        backgroundColor: isDarkMode ? selectedTheme.background : '#f8fafc',
+        color: isDarkMode ? selectedTheme.text : undefined,
         backgroundImage: bgWallpaper ? `linear-gradient(to bottom, rgba(3, 7, 18, 0.88), rgba(3, 7, 18, 0.95)), url(${bgWallpaper})` : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
       }}
     >
+      {bgWallpaper && background3dEnabled && (
+        <div
+          className="temple-3d-wallpaper pointer-events-none fixed inset-0 -z-0 bg-cover bg-center opacity-20"
+          style={{ backgroundImage: `url(${bgWallpaper})` }}
+        />
+      )}
+      {isLoadingScreenVisible && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 text-center" style={{ backgroundColor: selectedTheme.background }}>
+          <div className="space-y-5 px-6 animate-pulse">
+            <div className="mx-auto h-28 w-28 overflow-hidden rounded-3xl border-2 shadow-2xl" style={{ borderColor: selectedTheme.accent }}>
+              <img src={splashImage || badgeLogo} alt="Welcome image" className="h-full w-full object-cover" />
+            </div>
+            <div>
+              <p className="text-xl font-black" style={{ color: selectedTheme.accent }}>{templeNameSi}</p>
+              <p className="mt-2 text-xs text-slate-300">{loadingTextSi}</p>
+            </div>
+            <div className="mx-auto h-1 w-32 overflow-hidden rounded-full bg-white/10"><div className="h-full w-1/2 animate-pulse rounded-full" style={{ backgroundColor: selectedTheme.accent }} /></div>
+          </div>
+        </div>
+      )}
       {/* Top Header Notice Bar */}
-      <div className={`py-2.5 px-4 sm:px-12 flex flex-wrap justify-between items-center gap-3 border-b backdrop-blur-md text-xs ${isDarkMode ? 'bg-slate-950/90 border-amber-500/20' : 'bg-white/90 border-slate-200'}`}>
+      <div className={`py-2.5 px-4 sm:px-12 flex flex-col sm:flex-row sm:flex-wrap justify-between items-stretch sm:items-center gap-3 border-b backdrop-blur-md text-xs ${isDarkMode ? 'bg-slate-950/90 border-amber-500/20' : 'bg-white/90 border-slate-200'}`}>
         <div className="flex items-center gap-2 font-semibold text-amber-400 overflow-hidden">
           <span className="animate-pulse">📢</span>
           <span className="truncate">{tickerText}</span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {isLiveStreaming && (
             <a href={liveStreamUrl} target="_blank" rel="noreferrer" className="px-3 py-1 rounded-full text-[11px] font-black bg-red-600 text-white animate-bounce flex items-center gap-1">
               <span>🔴</span> <span>සජීවී විකාශය (Live)</span>
@@ -1146,7 +1289,7 @@ export default function CompleteTempleApp() {
           <span className="text-xs font-black uppercase text-amber-400 tracking-widest block mb-1">🪔 {lang === 'si' ? 'ඉදිරි විශේෂ පින්කම් මාලාව' : 'Upcoming Event'} 🪔</span>
           <h2 className="text-xl sm:text-2xl font-black text-amber-200 mb-6 py-1 leading-snug">{lang === 'si' ? eventTitleSi : eventTitleEn}</h2>
           {timeLeft ? (
-            <div className="grid grid-cols-4 gap-3 max-w-md mx-auto">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-md mx-auto">
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl backdrop-blur-md"><span className="block text-2xl font-black text-amber-400">{timeLeft.days}</span><span className="text-[10px] text-slate-300 uppercase">දින</span></div>
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl backdrop-blur-md"><span className="block text-2xl font-black text-amber-400">{timeLeft.hours}</span><span className="text-[10px] text-slate-300 uppercase">පැය</span></div>
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl backdrop-blur-md"><span className="block text-2xl font-black text-amber-400">{timeLeft.minutes}</span><span className="text-[10px] text-slate-300 uppercase">මිනිත්තු</span></div>
@@ -1406,6 +1549,21 @@ export default function CompleteTempleApp() {
                 <p className="text-xs text-amber-200/70 mt-1">
                   වත්මන් භූමිකාව: <span className="font-bold text-amber-400 uppercase">{currentRole}</span>
                 </p>
+                {supabase && (
+                  <p className={`text-[10px] mt-2 ${cloudSyncStatus === 'error' ? 'text-red-300' : cloudSyncStatus === 'saved' ? 'text-emerald-300' : 'text-slate-400'}`}>
+                    {cloudSyncStatus === 'loading' ? 'Cloud sync වෙමින්...' : cloudSyncStatus === 'saved' ? 'Cloud sync සාර්ථකයි' : cloudSyncStatus === 'error' ? `Cloud sync error: ${cloudSyncError}` : 'Cloud sync සූදානම්'}
+                    {cloudSyncStatus === 'error' && (
+                      <button type="button" onClick={() => setCloudSyncRetry(value => value + 1)} className="ml-2 underline text-amber-300">
+                        නැවත උත්සාහ කරන්න
+                      </button>
+                    )}
+                  </p>
+                )}
+                {!supabase && (
+                  <p className="text-[10px] mt-2 text-red-300">
+                    Cloud sync අක්‍රියයි: Supabase URL එක නිවැරදිව සකසන්න.
+                  </p>
+                )}
               </div>
               <button
                 onClick={handleAdminLogout}
@@ -1455,14 +1613,6 @@ export default function CompleteTempleApp() {
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition ${adminSubTab === 'students' ? 'bg-amber-500 text-slate-950 font-black shadow-lg' : 'bg-slate-900 text-slate-300 border border-amber-500/20 hover:text-amber-300'}`}
                 >
                   🎓 දහම් පාසල් අයදුම්පත් ({studentEnrollments.filter(s => s.status === 'pending').length})
-                </button>
-              )}
-              {canAccess('roles') && (
-                <button
-                  onClick={() => setAdminSubTab('roles')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition ${adminSubTab === 'roles' ? 'bg-amber-500 text-slate-950 font-black shadow-lg' : 'bg-slate-900 text-slate-300 border border-amber-500/20 hover:text-amber-300'}`}
-                >
-                  🔑 මුරපද (Passwords)
                 </button>
               )}
             </div>
@@ -1576,6 +1726,11 @@ export default function CompleteTempleApp() {
                   <h3 className="font-bold text-amber-400">🖼️ පසුබිම් සහ බැනර් ඡායාරූප (Media Covers)</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
+                      <label className="block text-slate-300 mb-1">Welcome Screen Image</label>
+                      <input type="url" value={splashImage} onChange={e => setSplashImage(e.target.value)} placeholder="https://..." className="w-full p-2 rounded-xl bg-slate-950 border border-amber-500/30 text-white mb-2" />
+                      <input type="file" accept="image/*" onChange={e => handleFileUploadWithEditor(e, setSplashImage)} className="text-[10px] text-slate-400" />
+                    </div>
+                    <div>
                       <label className="block text-slate-300 mb-1">පසුබිම් Wallpaper</label>
                       <input type="url" value={bgWallpaper} onChange={e => setBgWallpaper(e.target.value)} placeholder="https://..." className="w-full p-2 rounded-xl bg-slate-950 border border-amber-500/30 text-white mb-2" />
                       <input type="file" accept="image/*" onChange={e => handleFileUploadWithEditor(e, setBgWallpaper)} className="text-[10px] text-slate-400" />
@@ -1595,6 +1750,44 @@ export default function CompleteTempleApp() {
                       <input type="url" value={timerCover} onChange={e => setTimerCover(e.target.value)} placeholder="https://..." className="w-full p-2 rounded-xl bg-slate-950 border border-amber-500/30 text-white mb-2" />
                       <input type="file" accept="image/*" onChange={e => handleFileUploadWithEditor(e, setTimerCover)} className="text-[10px] text-slate-400" />
                     </div>
+                  </div>
+                  <label className="flex items-center gap-2 text-slate-300 font-semibold">
+                    <input type="checkbox" checked={background3dEnabled} onChange={e => setBackground3dEnabled(e.target.checked)} className="accent-amber-500" />
+                    3D wallpaper depth effect
+                  </label>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-900/60 border border-amber-500/20 space-y-4">
+                  <h3 className="font-bold text-amber-400">🎨 Website Theme සහ Welcome Loading Screen</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="block text-slate-300 mb-1">Active theme</label>
+                      <select value={selectedThemeId} onChange={e => setSelectedThemeId(e.target.value)} className="w-full p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-white">
+                        {themes.map(theme => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
+                      </select>
+                    </div>
+                    <label className="flex items-center gap-2 text-slate-300 pt-6">
+                      <input type="checkbox" checked={loadingEnabled} onChange={e => setLoadingEnabled(e.target.checked)} className="accent-amber-500" />
+                      Loading screen
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input type="text" value={loadingTextSi} onChange={e => setLoadingTextSi(e.target.value)} placeholder="Loading text" className="p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-white" />
+                    <label className="text-slate-300">Duration (ms)<input type="number" min="300" max="10000" step="100" value={loadingDuration} onChange={e => setLoadingDuration(Number(e.target.value))} className="mt-1 w-full p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-white" /></label>
+                    <p className="text-[10px] text-slate-400 pt-2">Logo: Media Covers හි Logo upload එක. Background: Wallpaper upload එක.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <input type="text" value={themeName} onChange={e => setThemeName(e.target.value)} placeholder="New theme name" className="p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-white" />
+                    <label className="text-slate-300">Background<input type="color" value={themeBackground} onChange={e => setThemeBackground(e.target.value)} className="mt-1 h-10 w-full rounded bg-slate-950" /></label>
+                    <label className="text-slate-300">Accent<input type="color" value={themeAccent} onChange={e => setThemeAccent(e.target.value)} className="mt-1 h-10 w-full rounded bg-slate-950" /></label>
+                    <button type="button" onClick={addTheme} className="self-end rounded-xl bg-amber-500 px-4 py-2.5 font-bold text-slate-950">Add theme</button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {themes.filter(theme => !DEFAULT_THEMES.some(defaultTheme => defaultTheme.id === theme.id)).map(theme => (
+                      <button key={theme.id} type="button" onClick={() => deleteTheme(theme.id)} className="rounded-lg border border-red-500/30 bg-red-600/20 px-3 py-1.5 text-[10px] text-red-300">
+                        Delete {theme.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -1930,27 +2123,6 @@ export default function CompleteTempleApp() {
               </div>
             )}
 
-            {/* Admin Sub Tab 6: Password Roles Settings */}
-            {adminSubTab === 'roles' && canAccess('roles') && (
-              <form onSubmit={savePasswords} className="space-y-4 text-xs max-w-md">
-                <h3 className="font-bold text-sm text-amber-400 border-b border-amber-500/20 pb-2">🔑 පරිපාලන මුරපද (Passwords) වෙනස් කිරීම</h3>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Super Admin Password</label>
-                  <input type="text" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} required className="w-full p-2.5 rounded-xl bg-slate-900 border border-amber-500/30 text-white" />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Editor Password</label>
-                  <input type="text" value={editorPassword} onChange={e => setEditorPassword(e.target.value)} required className="w-full p-2.5 rounded-xl bg-slate-900 border border-amber-500/30 text-white" />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Dhamma Admin Password</label>
-                  <input type="text" value={dhammaPassword} onChange={e => setDhammaPassword(e.target.value)} required className="w-full p-2.5 rounded-xl bg-slate-900 border border-amber-500/30 text-white" />
-                </div>
-                <button type="submit" className="px-6 py-2.5 rounded-xl font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition">
-                  💾 මුරපද සුරකින්න (Save Passwords)
-                </button>
-              </form>
-            )}
           </div>
         )}
       </main>

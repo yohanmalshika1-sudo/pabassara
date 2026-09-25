@@ -40,10 +40,12 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 1. Push this project to GitHub or another Git provider.
 2. In Netlify, choose **Add new site** and import the repository.
 3. Keep the detected build command as `npm run build` and deploy.
-4. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Netlify site environment variables when gallery data is required.
+4. Add the Supabase project URL and publishable/anon key in Netlify site environment variables. `NEXT_PUBLIC_SUPABASE_URL` must look like `https://your-project.supabase.co`; it is not the `sb_publishable_...` key. Use the same values in local `.env.local`.
 
 ## Supabase shared uploads
 
 Run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL Editor. It creates the public `gallery` table, the shared `site_content` table, the `temple-media` storage bucket, and policies that allow everyone to read published content while only signed-in Supabase users can upload, edit, or delete it.
 
 Create the admin user in Supabase under **Authentication → Users**, then use that email and password in the website admin login. Main branding, posts, pages, categories, media settings, bank details, event settings, puja settings, and music tracks now sync through `site_content` after an authenticated admin edit. Browser localStorage remains as a fallback for offline/local use.
+
+If the admin panel is opened with the built-in local role password instead of a Supabase email login, edits remain in that browser only and cannot be shared with other devices. For shared updates, configure valid Supabase environment variables, run `supabase/schema.sql`, and sign in with the Supabase admin account.

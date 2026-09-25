@@ -46,6 +46,20 @@ body {
   color: var(--text-color);
   transition: all 0.4s ease-in-out;
   min-height: 100vh;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+video,
+audio,
+iframe {
+  max-width: 100%;
 }
 
 /* Buddhist Flag Strip */
@@ -75,4 +89,19 @@ body {
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: var(--shadow);
+}
+
+@keyframes temple-wallpaper-depth {
+  0%, 100% { transform: scale(1.04) translate3d(0, 0, 0); }
+  50% { transform: scale(1.12) translate3d(-1%, -1%, 0); }
+}
+
+.temple-3d-wallpaper {
+  animation: temple-wallpaper-depth 24s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .temple-3d-wallpaper { animation: none; }
 }
