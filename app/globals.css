@@ -62,6 +62,39 @@ iframe {
   max-width: 100%;
 }
 
+main,
+section,
+form,
+.grid,
+.flex {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  main,
+  section,
+  form {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .grid > *,
+  .flex > * {
+    min-width: 0;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    max-width: 100%;
+  }
+
+  input[type='file'] {
+    width: 100%;
+  }
+}
+
 /* Buddhist Flag Strip */
 .buddhist-flag-bar {
   height: 6px;
