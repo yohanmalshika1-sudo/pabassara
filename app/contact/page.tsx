@@ -29,13 +29,15 @@ const INITIAL_POSTS: Post[] = [
     id: '1',
     category: 'history',
     title: 'විහාරස්ථානයේ ඓතිහාසික පසුබිම',
-    description: 'ශ්‍රී බෝධිරුක්ඛාරාමය, ගණිහිමුල්ල දෙවලපොල ප්‍රදේශයේ බෞද්ධ ජනතාවගේ මුදුන්මල්කඩ බඳු වූ පූජනීය ස්ථානයකි. අනුරාධපුර ශ්‍රී මහා බෝධීන් වහන්සේගේ ශාඛාවක් ලෙස රෝපණය කර ඇති බෝධීන් වහන්සේත්, සර්වඥ ධාතූන් නිධන් කළ චෛත්‍ය රාජයාණන් වහන්සේත්, පැරණි බුදු මැදුරත් මෙහි අතීත ශ්‍රී විභූතිය කියා පායි.',
+    description:
+      'ශ්‍රී බෝධිරුක්ඛාරාමය, ගණිහිමුල්ල දෙවලපොල ප්‍රදේශයේ බෞද්ධ ජනතාවගේ මුදුන්මල්කඩ බඳු වූ පූජනීය ස්ථානයකි. අනුරාධපුර ශ්‍රී මහා බෝධීන් වහන්සේගේ ශාඛාවක් ලෙස රෝපණය කර ඇති බෝධීන් වහන්සේත්, සර්වඥ ධාතූන් නිධන් කළ චෛත්‍ය රාජයාණන් වහන්සේත්, පැරණි බුදු මැදුරත් මෙහි අතීත ශ්‍රී විභූතිය කියා පායි.',
   },
   {
     id: '2',
     category: 'monks',
     title: 'පූජ්‍ය ගණිහිමුල්ලේ ධම්මරතන නායක හිමි',
-    description: 'විහාරාධිපති, ශ්‍රී බෝධිරුක්ඛාරාමය. උන්වහන්සේ වසර 25 කට අධික කාලයක් විහාරස්ථානයේ සහ ප්‍රදේශයේ ශාසනික හා සාමාජික සේවයේ නිරත වී සිටිති.',
+    description:
+      'විහාරාධිපති, ශ්‍රී බෝධිරුක්ඛාරාමය. උන්වහන්සේ වසර 25 කට අධික කාලයක් විහාරස්ථානයේ සහ ප්‍රදේශයේ ශාසනික හා සාමාජික සේවයේ නිරත වී සිටිති.',
   },
   {
     id: '3',
@@ -43,18 +45,19 @@ const INITIAL_POSTS: Post[] = [
     title: 'සතිපට්ඨාන සුත්‍ර ධර්ම දේශනාව',
     description: 'විහාරස්ථානයේ පැවැත්වූ විශේෂ පෝදා ධර්ම දේශනාව නරඹන්න.',
     youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-  }
+  },
 ];
 
+// Enhanced YouTube ID extraction (Supports Shorts, Embeds, Standard URLs)
 function getYouTubeId(url: string) {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = url?.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : null;
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 ? match[2] : null;
 }
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState('all');
-  const [theme, setTheme] = useState('default');
   const [isAdmin, setIsAdmin] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,28 +81,64 @@ export default function HomePage() {
   const [image, setImage] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
 
-  useEffect(() => {
-    // Automatically loads updated categories and data
-    const savedPosts = localStorage.getItem('temple_posts_v3');
-    if (savedPosts) {
-      setPosts(JSON.parse(savedPosts));
+  const changeTheme = (newTheme: string) => {
+    localStorage.setItem('temple_theme', newTheme);
+    if (newTheme === 'default') {
+      document.documentElement.removeAttribute('data-theme');
     } else {
-      setPosts(INITIAL_POSTS);
-      localStorage.setItem('temple_posts_v3', JSON.stringify(INITIAL_POSTS));
+      document.documentElement.setAttribute('data-theme', newTheme);
     }
+  };
 
-    const savedTicker = localStorage.getItem('temple_ticker_v3');
-    if (savedTicker) {
-      setTickerText(savedTicker);
-      setTempTickerText(savedTicker);
-    } else {
-      setTempTickerText(tickerText);
+  // Load Saved Data & Theme on Mount
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    try {
+      const savedPosts = localStorage.getItem('temple_posts_v3');
+      if (savedPosts) {
+        setPosts(JSON.parse(savedPosts));
+      } else {
+        setPosts(INITIAL_POSTS);
+        localStorage.setItem('temple_posts_v3', JSON.stringify(INITIAL_POSTS));
+      }
+
+      const savedTicker = localStorage.getItem('temple_ticker_v3');
+      if (savedTicker) {
+        setTickerText(savedTicker);
+        setTempTickerText(savedTicker);
+      } else {
+        setTempTickerText(tickerText);
+      }
+
+      const savedTheme = localStorage.getItem('temple_theme');
+      if (savedTheme) {
+        changeTheme(savedTheme);
+      }
+    } catch (e) {
+      console.error('Error loading data from localStorage:', e);
     }
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Keyboard Navigation for Modals (Escape key listener)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedImg(null);
+        setShowDonateModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const savePosts = (updatedPosts: Post[]) => {
     setPosts(updatedPosts);
-    localStorage.setItem('temple_posts_v3', JSON.stringify(updatedPosts));
+    try {
+      localStorage.setItem('temple_posts_v3', JSON.stringify(updatedPosts));
+    } catch (error) {
+      alert('ලබාදුන් පින්තූරය විශාල වැඩියි. කරුණාකර කුඩා පින්තූරයක් භාවිත කරන්න.');
+    }
   };
 
   const handleTickerSave = (e: React.FormEvent) => {
@@ -107,15 +146,6 @@ export default function HomePage() {
     setTickerText(tempTickerText);
     localStorage.setItem('temple_ticker_v3', tempTickerText);
     alert('පුවත් පුවරුවේ විස්තර සාර්ථකව යාවත්කාලීන විය!');
-  };
-
-  const changeTheme = (newTheme: string) => {
-    setTheme(newTheme);
-    if (newTheme === 'default') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', newTheme);
-    }
   };
 
   const toggleAdmin = () => {
@@ -189,6 +219,10 @@ export default function HomePage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('ඡායාරූපයේ ප්‍රමාණය 2MB වලට වඩා අඩු විය යුතුය.');
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => setImage(reader.result as string);
       reader.readAsDataURL(file);
@@ -219,9 +253,9 @@ export default function HomePage() {
           <span className="hidden sm:inline">ඊළඟ පෝය දිනය:</span>
           <b className="text-amber-200">වප් පෝය (2026 ඔක්තෝබර් 25)</b>
         </div>
-        <button 
+        <button
           onClick={() => setShowDonateModal(true)}
-          className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white px-3.5 py-1 rounded-full border border-amber-300/30 shadow-md transition flex items-center gap-1.5 font-bold"
+          className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white px-3.5 py-1 rounded-full border border-amber-300/30 shadow-md transition flex items-center gap-1.5 font-bold cursor-pointer"
         >
           <span>🙏</span> පිංකම් දායකත්වය / ආධාර
         </button>
@@ -233,7 +267,7 @@ export default function HomePage() {
           <span className="animate-pulse">🔔</span> පුවත් පුවරුව
         </div>
         <div className="overflow-hidden w-full pl-3">
-          <span className="animate-scroll">{tickerText}</span>
+          <span className="animate-scroll inline-block whitespace-nowrap">{tickerText}</span>
         </div>
       </div>
 
@@ -269,20 +303,19 @@ export default function HomePage() {
       {/* Navigation & Live Search Bar */}
       <div className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border-b border-amber-500/15 shadow-md py-3.5 px-3">
         <div className="max-w-6xl mx-auto space-y-3">
-          
           {/* Live Search Field */}
           <div className="max-w-md mx-auto relative">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="🔍 ලිපි, ධර්ම දේශනා හෝ තොරතුරු සූයන්න..."
+              placeholder="🔍 ලිපි, ධර්ම දේශනා හෝ තොරතුරු සොයන්න..."
               className="w-full pl-10 pr-10 py-2 text-sm rounded-full border border-amber-300/80 dark:border-slate-700 bg-white/90 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 transition shadow-inner"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-2.5 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-white"
+                className="absolute right-3 top-2.5 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-white cursor-pointer"
               >
                 ✕
               </button>
@@ -297,7 +330,7 @@ export default function HomePage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 rounded-full font-bold text-xs transition-all duration-300 flex items-center gap-1.5 ${
+                  className={`px-4 py-2 rounded-full font-bold text-xs transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                     isActive
                       ? 'bg-[var(--primary-accent)] text-white shadow-lg scale-105 ring-2 ring-amber-400/50'
                       : 'bg-white/80 dark:bg-slate-800/80 text-[var(--text-color)] hover:bg-amber-100/50 dark:hover:bg-slate-700 shadow-sm'
@@ -314,7 +347,6 @@ export default function HomePage() {
 
       {/* Main Content Display Area */}
       <main className="max-w-4xl mx-auto px-4 mt-8">
-        
         {/* Section Title & Pirith Audio Controller */}
         <div className="flex items-center justify-between mb-6 pb-3 border-b-2 border-amber-500/20">
           <h2 className="text-xl md:text-2xl font-bold text-[var(--primary-accent)] flex items-center gap-2">
@@ -325,7 +357,7 @@ export default function HomePage() {
           {/* Audio Chanting Player */}
           <button
             onClick={() => setIsAudioPlaying(!isAudioPlaying)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 shadow-md ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer ${
               isAudioPlaying
                 ? 'bg-emerald-600 text-white animate-pulse'
                 : 'bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 hover:bg-amber-200'
@@ -342,7 +374,9 @@ export default function HomePage() {
             <div className="flex items-center gap-3">
               <span className="text-2xl animate-spin">🪷</span>
               <div>
-                <div className="text-sm font-bold text-emerald-800 dark:text-emerald-300">මහා පිරිත ශ්‍රවණය (Seth Pirith)</div>
+                <div className="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+                  මහා පිරිත ශ්‍රවණය (Seth Pirith)
+                </div>
                 <div className="text-xs opacity-75">ශ්‍රී බෝධිරුක්ඛාරාම ශ්‍රව්‍ය පද්ධතිය</div>
               </div>
             </div>
@@ -352,7 +386,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Posts Display List (Dates and 'Article count' removed) */}
+        {/* Posts Display List */}
         <div className="space-y-6">
           {filteredPosts.length === 0 ? (
             <div className="text-center py-16 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 glass-card">
@@ -362,7 +396,7 @@ export default function HomePage() {
           ) : (
             filteredPosts.map((post) => {
               const ytId = post.youtubeUrl ? getYouTubeId(post.youtubeUrl) : null;
-              
+
               return (
                 <article
                   key={post.id}
@@ -373,13 +407,13 @@ export default function HomePage() {
                     <div className="flex justify-end gap-2 mb-3">
                       <button
                         onClick={() => startEdit(post)}
-                        className="bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-1 rounded-lg font-medium transition shadow-sm"
+                        className="bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-1 rounded-lg font-medium transition shadow-sm cursor-pointer"
                       >
                         ✏️ Edit
                       </button>
                       <button
                         onClick={() => handleDelete(post.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded-lg font-medium transition shadow-sm"
+                        className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded-lg font-medium transition shadow-sm cursor-pointer"
                       >
                         🗑️ Delete
                       </button>
@@ -414,7 +448,7 @@ export default function HomePage() {
                     </a>
                   ) : (
                     post.image && (
-                      <div 
+                      <div
                         onClick={() => setSelectedImg(post.image || null)}
                         className="overflow-hidden rounded-2xl mb-4 border border-black/5 shadow-inner max-h-96 cursor-pointer relative group/img"
                       >
@@ -457,7 +491,7 @@ export default function HomePage() {
                 />
                 <button
                   type="submit"
-                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow"
+                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow cursor-pointer"
                 >
                   පුවත් පුවරුව Save කරන්න
                 </button>
@@ -481,7 +515,7 @@ export default function HomePage() {
                     onChange={(e) => setSelectedCategory(e.target.value)}
                     className="w-full p-3 rounded-xl border border-amber-300 dark:border-slate-600 bg-white dark:bg-slate-900 font-semibold focus:ring-2 focus:ring-amber-500 outline-none"
                   >
-                    {CATEGORIES.filter(c => c.id !== 'all').map((cat) => (
+                    {CATEGORIES.filter((c) => c.id !== 'all').map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {cat.icon} {cat.label}
                       </option>
@@ -519,7 +553,7 @@ export default function HomePage() {
 
                 {/* Photo Upload */}
                 <div>
-                  <label className="block text-sm font-bold mb-1.5">ඡායාරූපයක් (Photo - Optional):</label>
+                  <label className="block text-sm font-bold mb-1.5">ඡායාරූපයක් (Photo - Optional, Max 2MB):</label>
                   <input
                     type="file"
                     accept="image/*"
@@ -547,7 +581,7 @@ export default function HomePage() {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:brightness-110 active:scale-[0.98] transition"
+                    className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:brightness-110 active:scale-[0.98] transition cursor-pointer"
                   >
                     {editingId ? 'වෙනස්කම් Save කරන්න' : 'Post එක පළ කරන්න'}
                   </button>
@@ -561,7 +595,7 @@ export default function HomePage() {
                         setImage('');
                         setYoutubeUrl('');
                       }}
-                      className="bg-gray-500 text-white font-bold px-6 py-3.5 rounded-xl hover:bg-gray-600 transition"
+                      className="bg-gray-500 text-white font-bold px-6 py-3.5 rounded-xl hover:bg-gray-600 transition cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -571,19 +605,21 @@ export default function HomePage() {
             </div>
           </div>
         )}
-
       </main>
 
       {/* Lightbox Photo View Modal */}
       {selectedImg && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
           onClick={() => setSelectedImg(null)}
         >
-          <div className="relative max-w-4xl w-full">
+          <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
             <img src={selectedImg} alt="Enlarged" className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
-            <button className="absolute -top-10 right-0 text-white text-sm font-bold bg-white/20 px-4 py-1.5 rounded-full">
-              ✕ වසන්න
+            <button
+              onClick={() => setSelectedImg(null)}
+              className="absolute -top-10 right-0 text-white text-sm font-bold bg-white/20 hover:bg-white/30 px-4 py-1.5 rounded-full cursor-pointer"
+            >
+              ✕ වසන්න (Esc)
             </button>
           </div>
         </div>
@@ -591,37 +627,51 @@ export default function HomePage() {
 
       {/* Donation & Pinkam Modal */}
       {showDonateModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 max-w-md w-full rounded-3xl p-6 shadow-2xl border border-amber-500/30">
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowDonateModal(false)}
+        >
+          <div
+            className="bg-white dark:bg-slate-800 max-w-md w-full rounded-3xl p-6 shadow-2xl border border-amber-500/30"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-4 border-b pb-3">
               <h3 className="text-xl font-bold text-amber-800 dark:text-amber-300 flex items-center gap-2">
                 <span>🙏</span> පිංකම් දායකත්වය & ආධාර
               </h3>
-              <button 
+              <button
                 onClick={() => setShowDonateModal(false)}
-                className="text-gray-400 hover:text-black dark:hover:text-white font-bold text-xl"
+                className="text-gray-400 hover:text-black dark:hover:text-white font-bold text-xl cursor-pointer"
               >
                 ✕
               </button>
             </div>
-            
+
             <p className="text-sm opacity-85 mb-4 leading-relaxed">
               විහාරස්ථානයේ සංවර්ධන කටයුතු සහ පිංකම් සඳහා ඔබගේ දායකත්වය පහත බැංකු ගිණුම ඔස්සේ ලබා දිය හැක.
             </p>
 
             <div className="bg-amber-50 dark:bg-slate-900 p-4 rounded-2xl space-y-2 text-sm border border-amber-200 dark:border-slate-700">
-              <div><b>බැංකුව:</b> ලංකා බැංකුව (Bank of Ceylon)</div>
-              <div><b>ගිණුම් නම:</b> ශ්‍රී බෝධිරුක්ඛාරාම සංවර්ධන සභාව</div>
-              <div><b>ගිණුම් අංකය:</b> 1234567890</div>
-              <div><b>ශාඛාව:</b> මීගමුව</div>
+              <div>
+                <b>බැංකුව:</b> ලංකා බැංකුව (Bank of Ceylon)
+              </div>
+              <div>
+                <b>ගිණුම් නම:</b> ශ්‍රී බෝධිරුක්ඛාරාම සංවර්ධන සභාව
+              </div>
+              <div>
+                <b>ගිණුම් අංකය:</b> 1234567890
+              </div>
+              <div>
+                <b>ශාඛාව:</b> මීගමුව
+              </div>
             </div>
 
-            <button 
+            <button
               onClick={() => {
                 navigator.clipboard.writeText('1234567890');
                 alert('ගිණුම් අංකය Copy කරගන්නා ලදී!');
               }}
-              className="mt-5 w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-xl transition shadow-lg"
+              className="mt-5 w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-xl transition shadow-lg cursor-pointer"
             >
               📋 ගිණුම් අංකය Copy කරන්න
             </button>
@@ -634,35 +684,35 @@ export default function HomePage() {
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           title="ඉහළට යන්න"
-          className="w-12 h-12 rounded-full bg-amber-600 text-white shadow-2xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition"
+          className="w-12 h-12 rounded-full bg-amber-600 text-white shadow-2xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition cursor-pointer"
         >
           ⬆️
         </button>
         <button
           onClick={() => changeTheme('default')}
           title="සාමාන්‍ය තේමාව"
-          className="w-12 h-12 rounded-full bg-white text-amber-600 shadow-xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition border border-amber-200"
+          className="w-12 h-12 rounded-full bg-white text-amber-600 shadow-xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition border border-amber-200 cursor-pointer"
         >
           ☀️
         </button>
         <button
           onClick={() => changeTheme('vesak')}
           title="වෙසක් තේමාව"
-          className="w-12 h-12 rounded-full bg-[#1a0b2e] text-amber-400 border border-amber-400 shadow-xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition"
+          className="w-12 h-12 rounded-full bg-[#1a0b2e] text-amber-400 border border-amber-400 shadow-xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition cursor-pointer"
         >
           🏮
         </button>
         <button
           onClick={() => changeTheme('poson')}
           title="පොසොන් තේමාව"
-          className="w-12 h-12 rounded-full bg-[#eaf2f8] text-sky-600 border border-sky-300 shadow-xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition"
+          className="w-12 h-12 rounded-full bg-[#eaf2f8] text-sky-600 border border-sky-300 shadow-xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition cursor-pointer"
         >
           🌙
         </button>
         <button
           onClick={toggleAdmin}
           title="Admin Mode"
-          className={`w-12 h-12 rounded-full shadow-2xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition ${
+          className={`w-12 h-12 rounded-full shadow-2xl flex items-center justify-center text-xl hover:scale-110 active:scale-95 transition cursor-pointer ${
             isAdmin ? 'bg-emerald-600 text-white ring-4 ring-emerald-300' : 'bg-red-600 text-white'
           }`}
         >
