@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { SiteImage } from '@/lib/site-image';
 
 interface Post {
   id: string;
@@ -39,13 +40,6 @@ const INITIAL_POSTS: Post[] = [
     description:
       'විහාරාධිපති, ශ්‍රී බෝධිරුක්ඛාරාමය. උන්වහන්සේ වසර 25 කට අධික කාලයක් විහාරස්ථානයේ සහ ප්‍රදේශයේ ශාසනික හා සාමාජික සේවයේ නිරත වී සිටිති.',
   },
-  {
-    id: '3',
-    category: 'videos',
-    title: 'සතිපට්ඨාන සුත්‍ර ධර්ම දේශනාව',
-    description: 'විහාරස්ථානයේ පැවැත්වූ විශේෂ පෝදා ධර්ම දේශනාව නරඹන්න.',
-    youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-  },
 ];
 
 // Enhanced YouTube ID extraction (Supports Shorts, Embeds, Standard URLs)
@@ -68,10 +62,9 @@ export default function HomePage() {
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 
   // Ticker State
-  const [tickerText, setTickerText] = useState(
-    '2026 වසර සඳහා දහම් පාසලට නවක සිසුන් ඇතුළත් කිරීම ආරම්භ වේ. ✦ ධර්මාචාර්ය විභාග ප්‍රතිඵල නිකුත් වී ඇත. ✦ වාර්ෂික කඨින පිංකම පිළිබඳ විස්තර යාවත්කාලීන කර ඇත.'
-  );
-  const [tempTickerText, setTempTickerText] = useState('');
+  const defaultTickerText = '2026 වසර සඳහා දහම් පාසලට නවක සිසුන් ඇතුළත් කිරීම ආරම්භ වේ. ✦ ධර්මාචාර්ය විභාග ප්‍රතිඵල නිකුත් වී ඇත. ✦ වාර්ෂික කඨින පිංකම පිළිබඳ විස්තර යාවත්කාලීන කර ඇත.';
+  const [tickerText, setTickerText] = useState(defaultTickerText);
+  const [tempTickerText, setTempTickerText] = useState(defaultTickerText);
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -106,8 +99,6 @@ export default function HomePage() {
       if (savedTicker) {
         setTickerText(savedTicker);
         setTempTickerText(savedTicker);
-      } else {
-        setTempTickerText(tickerText);
       }
 
       const savedTheme = localStorage.getItem('temple_theme');
@@ -136,7 +127,7 @@ export default function HomePage() {
     setPosts(updatedPosts);
     try {
       localStorage.setItem('temple_posts_v3', JSON.stringify(updatedPosts));
-    } catch (error) {
+    } catch {
       alert('ලබාදුන් පින්තූරය විශාල වැඩියි. කරුණාකර කුඩා පින්තූරයක් භාවිත කරන්න.');
     }
   };
@@ -432,10 +423,10 @@ export default function HomePage() {
                       rel="noopener noreferrer"
                       className="block relative overflow-hidden rounded-2xl mb-4 group/yt shadow-md border border-red-500/30"
                     >
-                      <img
+                      <SiteImage
                         src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
                         alt={post.title}
-                        className="w-full h-64 md:h-80 object-cover group-hover/yt:scale-105 transition duration-500"
+                        className="w-full h-64 md:h-80 bg-slate-950 object-contain"
                       />
                       <div className="absolute inset-0 bg-black/40 group-hover/yt:bg-black/20 transition flex items-center justify-center">
                         <div className="w-16 h-16 bg-red-600 text-white rounded-full flex items-center justify-center shadow-2xl group-hover/yt:scale-110 transition duration-300">
@@ -452,10 +443,10 @@ export default function HomePage() {
                         onClick={() => setSelectedImg(post.image || null)}
                         className="overflow-hidden rounded-2xl mb-4 border border-black/5 shadow-inner max-h-96 cursor-pointer relative group/img"
                       >
-                        <img
+                        <SiteImage
                           src={post.image}
                           alt={post.title}
-                          className="w-full h-full object-cover group-hover/img:scale-105 transition duration-500"
+                          className="w-full h-full bg-slate-950 object-contain"
                         />
                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 transition flex items-center justify-center text-white text-xs font-bold">
                           🔍 පින්තූරය විශාල කර බලන්න
@@ -562,7 +553,7 @@ export default function HomePage() {
                   />
                   {image && (
                     <div className="mt-2 relative w-32 h-20 rounded-lg overflow-hidden border">
-                      <img src={image} alt="Preview" className="w-full h-full object-cover" />
+                      <SiteImage src={image} alt="Preview" className="w-full h-full bg-slate-950 object-contain" />
                     </div>
                   )}
                 </div>
@@ -614,7 +605,7 @@ export default function HomePage() {
           onClick={() => setSelectedImg(null)}
         >
           <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-            <img src={selectedImg} alt="Enlarged" className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
+            <SiteImage src={selectedImg} alt="Enlarged" className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
             <button
               onClick={() => setSelectedImg(null)}
               className="absolute -top-10 right-0 text-white text-sm font-bold bg-white/20 hover:bg-white/30 px-4 py-1.5 rounded-full cursor-pointer"
