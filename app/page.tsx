@@ -254,6 +254,7 @@ export default function CompleteTempleApp() {
   const [inputPassword, setInputPassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const [adminSubTab, setAdminSubTab] = useState<'general' | 'gallery' | 'roles' | 'posts' | 'pages' | 'slips' | 'students' | 'winners'>('general');
 
   // Dynamic Branding
@@ -409,7 +410,8 @@ export default function CompleteTempleApp() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'idle' | 'loading' | 'saved' | 'error'>('idle');
   const [cloudSyncError, setCloudSyncError] = useState('');
-  const [cloudSyncRetry, setCloudSyncRetry] = useState(0);
+  const [isSavingSiteContent, setIsSavingSiteContent] = useState(false);
+  const [savedSiteContentSnapshot, setSavedSiteContentSnapshot] = useState('');
 
   // Ticker
   const [tickerText, setTickerText] = useState('2026 වසර සඳහා දහම් පාසලට නවක සිසුන් ඇතුළත් කරගැනීම දැනට සිදුකෙරේ.');
@@ -443,6 +445,9 @@ export default function CompleteTempleApp() {
   const [cropWidth, setCropWidth] = useState(100);
   const [cropHeight, setCropHeight] = useState(100);
   const cloudReadyRef = useRef(false);
+  const allowPageUnloadRef = useRef(false);
+  const saveInProgressRef = useRef(false);
+  const savedSiteContentSnapshotRef = useRef('');
 
   const applySiteContent = (content: SiteContent) => {
     if (content.categories) setCategories(content.categories);
@@ -1025,12 +1030,23 @@ export default function CompleteTempleApp() {
     alert(`Login failed: ${error.message}`);
   };
 
-  const handleAdminLogout = async () => {
-    if (supabase) await supabase.auth.signOut();
+  const finishAdminLogout = async (reloadPage = false) => {
+    if (supabase) {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        alert(`Logout අසාර්ථකයි: ${error.message}`);
+        return;
+      }
+    }
     setIsAdmin(false);
     setCurrentRole('super_admin');
     setAdminEmail('');
     setInputPassword('');
+    setShowExitConfirmation(false);
+    if (reloadPage) {
+      allowPageUnloadRef.current = true;
+      window.location.reload();
+    }
   };
 
   const canAccess = (feature: 'general' | 'gallery' | 'roles' | 'posts' | 'pages' | 'slips' | 'students' | 'winners') => {
@@ -1127,7 +1143,7 @@ export default function CompleteTempleApp() {
       if (!persistPosts(updated)) return;
     }
     cancelPostEdit();
-    alert('වෙනස්කම් Supabase වෙත sync වෙමින් පවතී. Admin dashboard එකේ cloud status බලන්න.');
+    alert('වෙනස්කම් සකස් කළා. වෙබ් අඩවියේ පෙන්වීමට Admin dashboard එකේ Save website changes ඔබන්න.');
   };
 
   const cancelPostEdit = () => {
@@ -1281,7 +1297,7 @@ export default function CompleteTempleApp() {
         logoImage: pageLogo,
       } : p);
       setCustomPages(updated);
-      alert('පිටුවේ වෙනස්කම් Supabase වෙත sync වෙමින් පවතී. Admin dashboard එකේ cloud status බලන්න.');
+      alert('පිටුවේ වෙනස්කම් සකස් කළා. වෙබ් අඩවියේ පෙන්වීමට Admin dashboard එකේ Save website changes ඔබන්න.');
     } else {
       const newPage: CustomPage = {
         id: `page_${crypto.randomUUID()}`,
@@ -1294,7 +1310,7 @@ export default function CompleteTempleApp() {
       };
       const updated = [...customPages, newPage];
       setCustomPages(updated);
-      alert('නව පිටුව Supabase වෙත sync වෙමින් පවතී. Admin dashboard එකේ cloud status බලන්න.');
+      alert('නව පිටුව සකස් කළා. වෙබ් අඩවියේ පෙන්වීමට Admin dashboard එකේ Save website changes ඔබන්න.');
     }
     cancelPageEdit();
   };
@@ -1328,7 +1344,7 @@ export default function CompleteTempleApp() {
   const saveGeneralSettings = (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabase || !isAdmin) return alert('සැකසුම් Supabase එකට save කිරීමට admin login සහ cloud සම්බන්ධතාවය අවශ්‍යයි.');
-    setCloudSyncRetry(value => value + 1);
+    void saveSiteContent();
   };
 
   const resetWelcomeTheme = () => {
@@ -1866,7 +1882,7 @@ export default function CompleteTempleApp() {
 
   const saveWelcomeThemeSettings = () => {
     if (!supabase || !isAdmin) return alert('Welcome theme එක Supabase එකට save කිරීමට admin login සහ cloud සම්බන්ධතාවය අවශ්‍යයි.');
-    setCloudSyncRetry(value => value + 1);
+    void saveSiteContent();
   };
 
   const siteContent = useMemo<SiteContent>(() => ({
@@ -1938,30 +1954,82 @@ export default function CompleteTempleApp() {
     welcomeBackgroundColor, welcomeAccentColor, splashImage, background3dEnabled,
   ]);
 
+  const currentSiteContentSnapshot = useMemo(() => JSON.stringify(siteContent), [siteContent]);
+  const hasUnsavedChanges = savedSiteContentSnapshot !== ''
+    && currentSiteContentSnapshot !== savedSiteContentSnapshot;
+
   useEffect(() => {
-    if (!supabase || !isAdmin || !cloudReadyRef.current) return;
-    const client = supabase;
+    if (!isWelcomeSettingsReady || savedSiteContentSnapshotRef.current) return;
+    const initialSnapshot = JSON.stringify(siteContent);
+    savedSiteContentSnapshotRef.current = initialSnapshot;
+    setSavedSiteContentSnapshot(initialSnapshot);
+  }, [isWelcomeSettingsReady, siteContent]);
+
+  useEffect(() => {
+    if (!isAdmin || !hasUnsavedChanges) return;
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (allowPageUnloadRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, [hasUnsavedChanges, isAdmin]);
+
+  const saveSiteContent = async (): Promise<boolean> => {
+    if (!supabase || !isAdmin) {
+      setCloudSyncStatus('error');
+      setCloudSyncError('Admin login and Supabase connection are required to save website changes.');
+      return false;
+    }
+    if (saveInProgressRef.current) return false;
+
+    saveInProgressRef.current = true;
+    setIsSavingSiteContent(true);
     setCloudSyncStatus('loading');
-    const syncTimer = window.setTimeout(async () => {
-      try {
-        const { data: sessionData, error: sessionError } = await client.auth.getSession();
-        if (sessionError) throw sessionError;
-        if (!sessionData.session) throw new Error('Admin Supabase session is missing. Login again.');
-        const { error } = await client.from('site_content').upsert({
-          id: 'main',
-          content: siteContent,
-          updated_at: new Date().toISOString(),
-        });
-        if (error) throw error;
-        setCloudSyncStatus('saved');
-        setCloudSyncError('');
-      } catch (error) {
-        setCloudSyncStatus('error');
-        setCloudSyncError(error instanceof Error ? error.message : 'Could not save site content to Supabase.');
-      }
-    }, 700);
-    return () => window.clearTimeout(syncTimer);
-  }, [cloudSyncRetry, isAdmin, siteContent]);
+    const snapshot = JSON.stringify(siteContent);
+    try {
+      const client = supabase;
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) throw new Error('Admin Supabase session is missing. Login again.');
+      const { error } = await client.from('site_content').upsert({
+        id: 'main',
+        content: siteContent,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+
+      savedSiteContentSnapshotRef.current = snapshot;
+      setSavedSiteContentSnapshot(snapshot);
+      setCloudSyncStatus('saved');
+      setCloudSyncError('');
+      return true;
+    } catch (error) {
+      setCloudSyncStatus('error');
+      setCloudSyncError(error instanceof Error ? error.message : 'Could not save site content to Supabase.');
+      return false;
+    } finally {
+      saveInProgressRef.current = false;
+      setIsSavingSiteContent(false);
+    }
+  };
+
+  const requestAdminExit = () => {
+    if (hasUnsavedChanges) {
+      setShowExitConfirmation(true);
+      return;
+    }
+    void finishAdminLogout();
+  };
+
+  const saveAndExitAdmin = async () => {
+    if (await saveSiteContent()) await finishAdminLogout();
+  };
+
+  const discardAndExitAdmin = () => {
+    void finishAdminLogout(true);
+  };
 
   return (
     <div
@@ -2033,7 +2101,7 @@ export default function CompleteTempleApp() {
           <button onClick={() => setShowEnrollModal(true)} className="px-3.5 py-1 rounded-full text-[11px] font-black bg-emerald-600 text-white shadow-md hover:bg-emerald-500 transition">
             🎓 {lang === 'si' ? 'දහම් පාසල් ඇතුළත් වීම' : 'Enrollment'}
           </button>
-          <button onClick={() => { if (isAdmin) handleAdminLogout(); else setShowLoginModal(true); }} className={`px-3 py-1 rounded-full text-[11px] font-bold ${isAdmin ? 'bg-red-500 text-white' : 'bg-slate-800 text-amber-300 border border-amber-500/30'}`}>
+          <button onClick={() => { if (isAdmin) requestAdminExit(); else setShowLoginModal(true); }} className={`px-3 py-1 rounded-full text-[11px] font-bold ${isAdmin ? 'bg-red-500 text-white' : 'bg-slate-800 text-amber-300 border border-amber-500/30'}`}>
             {isAdmin ? `🔒 Exit (${currentRole})` : '⚙️ පරිපාලන පුවරුව'}
           </button>
         </div>
@@ -2639,13 +2707,16 @@ export default function CompleteTempleApp() {
                 </p>
                 {supabase && (
                   <p className={`text-[10px] mt-2 ${cloudSyncStatus === 'error' ? 'text-red-300' : cloudSyncStatus === 'saved' ? 'text-emerald-300' : 'text-slate-400'}`}>
-                    {cloudSyncStatus === 'loading' ? 'Cloud sync වෙමින්...' : cloudSyncStatus === 'saved' ? 'Cloud sync සාර්ථකයි' : cloudSyncStatus === 'error' ? `Cloud sync error: ${cloudSyncError}` : 'Cloud sync සූදානම්'}
+                    {cloudSyncStatus === 'loading' ? 'වෙබ් අඩවියට save වෙමින්...' : cloudSyncStatus === 'saved' ? 'වෙබ් අඩවියට save වුණා' : cloudSyncStatus === 'error' ? `Save error: ${cloudSyncError}` : 'වෙනස්කම් කළ පසු Save කරන්න'}
                     {cloudSyncStatus === 'error' && (
-                      <button type="button" onClick={() => setCloudSyncRetry(value => value + 1)} className="ml-2 underline text-amber-300">
-                        නැවත උත්සාහ කරන්න
+                      <button type="button" onClick={() => void saveSiteContent()} className="ml-2 underline text-amber-300">
+                        නැවත save කරන්න
                       </button>
                     )}
                   </p>
+                )}
+                {hasUnsavedChanges && (
+                  <p className="mt-1 text-[10px] font-bold text-amber-300">වෙබ් අඩවියට තවම save නොකළ වෙනස්කම් ඇත.</p>
                 )}
                 {!supabase && (
                   <p className="text-[10px] mt-2 text-red-300">
@@ -2654,10 +2725,10 @@ export default function CompleteTempleApp() {
                 )}
               </div>
               <button
-                onClick={handleAdminLogout}
-                className="px-4 py-1.5 rounded-full text-xs font-bold bg-red-600 text-white hover:bg-red-500 transition shadow-md"
+                onClick={requestAdminExit}
+                className="px-4 py-2 rounded-full text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-500 transition shadow-md"
               >
-                🔒 පාලන පුවරුවෙන් ඉවත් වන්න
+                💾 Save & Exit
               </button>
             </div>
 
@@ -2720,6 +2791,22 @@ export default function CompleteTempleApp() {
                 </button>
               )}
             </div>
+
+            {['general', 'posts', 'winners', 'pages'].includes(adminSubTab) && (
+              <div className="sticky bottom-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/40 bg-slate-900/95 p-3 shadow-xl backdrop-blur">
+                <p className={`text-xs font-bold ${hasUnsavedChanges ? 'text-amber-300' : 'text-emerald-300'}`}>
+                  {hasUnsavedChanges ? 'මෙම සැකසුම්වල වෙනස්කම් save කර නැත.' : 'Save කිරීමට pending වෙනස්කම් නැත.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void saveSiteContent()}
+                  disabled={!hasUnsavedChanges || isSavingSiteContent || !isWelcomeSettingsReady || !supabase}
+                  className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black text-white enabled:hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSavingSiteContent ? 'Saving...' : '💾 Save website changes'}
+                </button>
+              </div>
+            )}
 
             {/* Admin Photo Album */}
             {adminSubTab === 'gallery' && canAccess('gallery') && (
@@ -3372,7 +3459,7 @@ export default function CompleteTempleApp() {
 
                 <div className="space-y-3">
                   <h4 className="font-bold text-amber-300">Saved winners ({winners.length})</h4>
-                  <p className="text-[10px] text-slate-400">↑ ↓ භාවිතයෙන් homepage එකේ පෙන්වන අනුපිළිවෙළ වෙනස් කරන්න.</p>
+                  <p className="text-[10px] text-slate-400">↑ ↓ භාවිතයෙන් homepage එකේ පෙන්වන අනුපිළිවෙළ වෙනස් කර, වෙබ් අඩවියේ තහවුරු කිරීමට Save website changes ඔබන්න.</p>
                   {winners.length === 0 ? (
                     <p className="text-slate-500">No winners added yet.</p>
                   ) : (
@@ -3657,6 +3744,29 @@ export default function CompleteTempleApp() {
           </div>
         )}
       </main>
+
+      {showExitConfirmation && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div role="dialog" aria-modal="true" aria-labelledby="admin-exit-title" className="w-full max-w-md space-y-4 rounded-3xl border-2 border-amber-500/40 bg-slate-900 p-6 shadow-2xl">
+            <h3 id="admin-exit-title" className="text-lg font-black text-amber-300">වෙනස්කම් save කර exit වෙන්නද?</h3>
+            <p className="text-sm leading-relaxed text-slate-300">
+              Yes තෝරලා save කළොත් වෙනස්කම් වෙබ් අඩවියේ පෙන්වයි. No තෝරලා save නොකර exit වුණොත්, අවසන් වරට save කළ තොරතුරු නැවත පෙන්වයි.
+            </p>
+            {cloudSyncStatus === 'error' && <p className="text-xs text-red-300">Save error: {cloudSyncError}</p>}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setShowExitConfirmation(false)} className="rounded-xl border border-slate-600 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800">
+                ඉන්න
+              </button>
+              <button type="button" onClick={discardAndExitAdmin} className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-500">
+                No — save නොකර exit
+              </button>
+              <button type="button" onClick={() => void saveAndExitAdmin()} disabled={isSavingSiteContent} className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white hover:bg-emerald-500 disabled:opacity-50">
+                {isSavingSiteContent ? 'Saving...' : 'Yes — Save & Exit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* LOGIN MODAL */}
       {showLoginModal && (
