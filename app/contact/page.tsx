@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { SiteImage } from '@/lib/site-image';
+import { supabase } from '@/lib/supabase';
+import { getAdminRole } from '@/lib/admin-auth';
 
 interface Post {
   id: string;
@@ -92,7 +94,6 @@ export default function HomePage() {
         setPosts(JSON.parse(savedPosts));
       } else {
         setPosts(INITIAL_POSTS);
-        localStorage.setItem('temple_posts_v3', JSON.stringify(INITIAL_POSTS));
       }
 
       const savedTicker = localStorage.getItem('temple_ticker_v3');
@@ -107,6 +108,26 @@ export default function HomePage() {
       }
     } catch (e) {
       console.error('Error loading data from localStorage:', e);
+    }
+
+    if (supabase) {
+      void supabase
+        .from('contact_content')
+        .select('posts, ticker_text')
+        .eq('id', 'main')
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error) {
+            alert(`Shared page content could not be loaded: ${error.message}`);
+            return;
+          }
+          if (!data) return;
+          if (Array.isArray(data.posts)) setPosts(data.posts as Post[]);
+          if (typeof data.ticker_text === 'string') {
+            setTickerText(data.ticker_text);
+            setTempTickerText(data.ticker_text);
+          }
+        });
     }
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -123,38 +144,70 @@ export default function HomePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const savePosts = (updatedPosts: Post[]) => {
-    setPosts(updatedPosts);
-    try {
-      localStorage.setItem('temple_posts_v3', JSON.stringify(updatedPosts));
-    } catch {
-      alert('ලබාදුන් පින්තූරය විශාල වැඩියි. කරුණාකර කුඩා පින්තූරයක් භාවිත කරන්න.');
+  const saveContactContent = async (updates: { posts?: Post[]; tickerText?: string }) => {
+    if (!supabase) {
+      alert('මෙම වෙනස්කම් Supabase එකට සුරැකීමට cloud සම්බන්ධතාවය අවශ්‍යයි.');
+      return false;
     }
+    const { data: existing, error: loadError } = await supabase
+      .from('contact_content')
+      .select('posts, ticker_text')
+      .eq('id', 'main')
+      .maybeSingle();
+    if (loadError) {
+      alert(`Cloud content could not be read: ${loadError.message}`);
+      return false;
+    }
+    const postsToSave = updates.posts ?? (Array.isArray(existing?.posts) ? existing.posts as Post[] : posts);
+    const tickerToSave = updates.tickerText ?? existing?.ticker_text ?? tickerText;
+    const { error } = await supabase.from('contact_content').upsert({
+      id: 'main',
+      posts: postsToSave,
+      ticker_text: tickerToSave,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) {
+      alert(`Cloud save failed: ${error.message}`);
+      return false;
+    }
+    return true;
   };
 
-  const handleTickerSave = (e: React.FormEvent) => {
+  const handleTickerSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!(await saveContactContent({ tickerText: tempTickerText }))) return;
     setTickerText(tempTickerText);
-    localStorage.setItem('temple_ticker_v3', tempTickerText);
     alert('පුවත් පුවරුවේ විස්තර සාර්ථකව යාවත්කාලීන විය!');
   };
 
-  const toggleAdmin = () => {
+  const toggleAdmin = async () => {
     if (isAdmin) {
       setIsAdmin(false);
       alert('Admin Mode එකෙන් ඉවත් විය.');
-    } else {
-      const pwd = prompt('ඇඩ්මින් මුරපදය (Password: 1234):');
-      if (pwd === '1234') {
-        setIsAdmin(true);
-        alert('Admin Mode එක Activate විය!');
-      } else if (pwd !== null) {
-        alert('මුරපදය වැරදියි!');
-      }
+      return;
     }
+
+    if (!supabase) {
+      alert('Admin login is unavailable because Supabase is not configured.');
+      return;
+    }
+
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      alert(`Admin session check failed: ${error.message}`);
+      return;
+    }
+
+    if (!getAdminRole(data.session?.user)) {
+      alert('කරුණාකර ප්‍රධාන පිටුවේ admin email සහ password භාවිතයෙන් login වන්න.');
+      return;
+    }
+
+    setIsAdmin(true);
+    alert('Admin Mode එක Activate විය!');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) {
       alert('කරුණාකර මාතෘකාව සහ විස්තරය ඇතුළත් කරන්න!');
@@ -167,7 +220,8 @@ export default function HomePage() {
           ? { ...p, category: selectedCategory, title, description, image, youtubeUrl }
           : p
       );
-      savePosts(updated);
+      if (!(await saveContactContent({ posts: updated }))) return;
+      setPosts(updated);
       alert('Post එක වෙනස් කරන ලදී!');
       setEditingId(null);
     } else {
@@ -179,7 +233,9 @@ export default function HomePage() {
         image,
         youtubeUrl,
       };
-      savePosts([newPost, ...posts]);
+      const updated = [newPost, ...posts];
+      if (!(await saveContactContent({ posts: updated }))) return;
+      setPosts(updated);
       alert('නව Post එක එකතු කරන ලදී!');
     }
 
@@ -200,23 +256,33 @@ export default function HomePage() {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('මෙම Post එක මකා දැමීමට විශ්වාසද?')) {
       const updated = posts.filter((p) => p.id !== id);
-      savePosts(updated);
+      if (!(await saveContactContent({ posts: updated }))) return;
+      setPosts(updated);
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('ඡායාරූපයේ ප්‍රමාණය 2MB වලට වඩා අඩු විය යුතුය.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => setImage(reader.result as string);
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return alert('ඡායාරූපයේ ප්‍රමාණය 2MB වලට වඩා අඩු විය යුතුය.');
+    if (!supabase) return alert('ඡායාරූප upload කිරීමට Supabase සම්බන්ධතාවය අවශ්‍යයි.');
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!getAdminRole(sessionData.session?.user)) throw new Error('ඡායාරූප upload කිරීමට admin login වන්න.');
+      const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const filePath = `contact/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from('temple-media').upload(filePath, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      setImage(supabase.storage.from('temple-media').getPublicUrl(filePath).data.publicUrl);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Image upload failed.');
     }
   };
 

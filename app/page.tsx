@@ -3,11 +3,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { SiteImage } from '@/lib/site-image';
+import { getAdminRole, type AdminRole } from '@/lib/admin-auth';
 
 
 // Types & Interfaces
-type AdminRole = 'super_admin' | 'editor' | 'dhamma_admin';
-
 interface Category {
   id: string;
   labelSi: string;
@@ -92,6 +91,7 @@ interface DhammaWinner {
   id: string;
   name: string;
   achievement: string;
+  place?: string;
   grade: string;
   year: string;
   image: string;
@@ -141,8 +141,6 @@ const DEFAULT_UPCOMING_EVENTS: UpcomingEvent[] = [
   { id: 'sil-2026-11', date: '2026-11-15', titleSi: 'සීල සමාදාන වැඩසටහන', titleEn: 'Sil Samadana Program', tagSi: 'සේවාව', tagEn: 'Service' },
   { id: 'sermon-2026-12', date: '2026-12-05', titleSi: 'ධර්ම දේශනා මණ්ඩලය', titleEn: 'Dhamma Sermon Gathering', tagSi: 'දේශනාව', tagEn: 'Sermon' },
 ];
-
-const LOCAL_ADMIN_PASSWORD = '1234';
 
 type SiteContent = Partial<{
   categories: Category[];
@@ -253,7 +251,6 @@ export default function CompleteTempleApp() {
   // Admin Auth & Role System
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentRole, setCurrentRole] = useState<AdminRole>('super_admin');
-  const [loginRole, setLoginRole] = useState<AdminRole>('super_admin');
   const [inputPassword, setInputPassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -284,7 +281,6 @@ export default function CompleteTempleApp() {
   const [themeText, setThemeText] = useState('#f8fafc');
   const loadingStartedAtRef = useRef<number | null>(null);
   const hasAutoStartedWelcomeRef = useRef(false);
-  const localWelcomeThemeSavedRef = useRef(false);
 
   // Daily Verse / Dhamma Thought State
   const [dailyVerseSi, setDailyVerseSi] = useState('නහි වේරේන වේරානි සම්මන්තීධ කුදාචනං | අවේරේන ච සම්මන්ති ඒස ධම්මෝ සනන්තනෝ.');
@@ -379,6 +375,7 @@ export default function CompleteTempleApp() {
   const [editingWinnerId, setEditingWinnerId] = useState<string | null>(null);
   const [winnerName, setWinnerName] = useState('');
   const [winnerAchievement, setWinnerAchievement] = useState('');
+  const [winnerPlace, setWinnerPlace] = useState('');
   const [winnerGrade, setWinnerGrade] = useState('');
   const [winnerYear, setWinnerYear] = useState(String(new Date().getFullYear()));
   const [winnerImage, setWinnerImage] = useState('');
@@ -452,62 +449,60 @@ export default function CompleteTempleApp() {
     if (content.galleryItems) setGalleryItems(content.galleryItems.slice(0, 100));
     if (content.customPages) setCustomPages(content.customPages);
     if (content.posts) setPosts(content.posts);
-    if (content.templeNameSi) setTempleNameSi(content.templeNameSi);
-    if (content.templeNameEn) setTempleNameEn(content.templeNameEn);
-    if (content.templeLocationSi) setTempleLocationSi(content.templeLocationSi);
-    if (content.templeLocationEn) setTempleLocationEn(content.templeLocationEn);
-    if (content.tickerText) setTickerText(content.tickerText);
-    if (content.eventTitleSi) setEventTitleSi(content.eventTitleSi);
-    if (content.eventTitleEn) setEventTitleEn(content.eventTitleEn);
-    if (content.eventTargetDate) setEventTargetDate(content.eventTargetDate);
+    if (typeof content.templeNameSi === 'string') setTempleNameSi(content.templeNameSi);
+    if (typeof content.templeNameEn === 'string') setTempleNameEn(content.templeNameEn);
+    if (typeof content.templeLocationSi === 'string') setTempleLocationSi(content.templeLocationSi);
+    if (typeof content.templeLocationEn === 'string') setTempleLocationEn(content.templeLocationEn);
+    if (typeof content.tickerText === 'string') setTickerText(content.tickerText);
+    if (typeof content.eventTitleSi === 'string') setEventTitleSi(content.eventTitleSi);
+    if (typeof content.eventTitleEn === 'string') setEventTitleEn(content.eventTitleEn);
+    if (typeof content.eventTargetDate === 'string') setEventTargetDate(content.eventTargetDate);
     if (content.upcomingEvents) setUpcomingEvents(content.upcomingEvents);
-    if (content.bankName) setBankName(content.bankName);
-    if (content.bankAccountName) setBankAccountName(content.bankAccountName);
-    if (content.bankAccountNumber) setBankAccountNumber(content.bankAccountNumber);
-    if (content.bankBranch) setBankBranch(content.bankBranch);
+    if (typeof content.bankName === 'string') setBankName(content.bankName);
+    if (typeof content.bankAccountName === 'string') setBankAccountName(content.bankAccountName);
+    if (typeof content.bankAccountNumber === 'string') setBankAccountNumber(content.bankAccountNumber);
+    if (typeof content.bankBranch === 'string') setBankBranch(content.bankBranch);
     if (typeof content.isLiveStreaming === 'boolean') setIsLiveStreaming(content.isLiveStreaming);
-    if (content.liveStreamUrl) setLiveStreamUrl(content.liveStreamUrl);
-    if (content.bgWallpaper) setBgWallpaper(content.bgWallpaper);
-    if (content.backgroundVideo) setBackgroundVideo(content.backgroundVideo);
+    if (typeof content.liveStreamUrl === 'string') setLiveStreamUrl(content.liveStreamUrl);
+    if (typeof content.bgWallpaper === 'string') setBgWallpaper(content.bgWallpaper);
+    if (typeof content.backgroundVideo === 'string') setBackgroundVideo(content.backgroundVideo);
     if (content.sectionWallpapers) setSectionWallpapers(content.sectionWallpapers);
     if (content.sectionPhotos) setSectionPhotos(content.sectionPhotos);
     if (content.peopleBySection) setPeopleBySection(content.peopleBySection);
-    if (content.heroCover) setHeroCover(content.heroCover);
-    if (content.badgeLogo) setBadgeLogo(content.badgeLogo);
-    if (content.timerCover) setTimerCover(content.timerCover);
+    if (typeof content.heroCover === 'string') setHeroCover(content.heroCover);
+    if (typeof content.badgeLogo === 'string') setBadgeLogo(content.badgeLogo);
+    if (typeof content.timerCover === 'string') setTimerCover(content.timerCover);
     if (content.winners) setWinners(content.winners);
     if (typeof content.showWinnersOnHome === 'boolean') setShowWinnersOnHome(content.showWinnersOnHome);
-    if (content.winnerTopic) setWinnerTopic(content.winnerTopic);
+    if (typeof content.winnerTopic === 'string') setWinnerTopic(content.winnerTopic);
     if (content.winnerTopicPlacement) setWinnerTopicPlacement(content.winnerTopicPlacement);
-    if (content.winnerDisplayCount) setWinnerDisplayCount(content.winnerDisplayCount);
-    if (content.postDisplayCount) setPostDisplayCount(content.postDisplayCount);
-    if (content.postGridColumns) setPostGridColumns(content.postGridColumns);
-    if (content.dailyVerseSi) setDailyVerseSi(content.dailyVerseSi);
-    if (content.dailyVerseMeaningSi) setDailyVerseMeaningSi(content.dailyVerseMeaningSi);
-    if (content.pujaMorning) setPujaMorning(content.pujaMorning);
-    if (content.pujaNoon) setPujaNoon(content.pujaNoon);
-    if (content.pujaEvening) setPujaEvening(content.pujaEvening);
-    if (content.pujaMorningImg) setPujaMorningImg(content.pujaMorningImg);
-    if (content.pujaNoonImg) setPujaNoonImg(content.pujaNoonImg);
-    if (content.pujaEveningImg) setPujaEveningImg(content.pujaEveningImg);
+    if (typeof content.winnerDisplayCount === 'number') setWinnerDisplayCount(content.winnerDisplayCount);
+    if (typeof content.postDisplayCount === 'number') setPostDisplayCount(content.postDisplayCount);
+    if (typeof content.postGridColumns === 'number') setPostGridColumns(content.postGridColumns);
+    if (typeof content.dailyVerseSi === 'string') setDailyVerseSi(content.dailyVerseSi);
+    if (typeof content.dailyVerseMeaningSi === 'string') setDailyVerseMeaningSi(content.dailyVerseMeaningSi);
+    if (typeof content.pujaMorning === 'string') setPujaMorning(content.pujaMorning);
+    if (typeof content.pujaNoon === 'string') setPujaNoon(content.pujaNoon);
+    if (typeof content.pujaEvening === 'string') setPujaEvening(content.pujaEvening);
+    if (typeof content.pujaMorningImg === 'string') setPujaMorningImg(content.pujaMorningImg);
+    if (typeof content.pujaNoonImg === 'string') setPujaNoonImg(content.pujaNoonImg);
+    if (typeof content.pujaEveningImg === 'string') setPujaEveningImg(content.pujaEveningImg);
     if (content.musicTracks) {
       setMusicTracks(content.musicTracks);
       setActiveMusicId(content.musicTracks[0]?.id || '');
     }
     if (content.themes) setThemes(content.themes);
-    if (content.selectedThemeId) setSelectedThemeId(content.selectedThemeId);
-    if (!localWelcomeThemeSavedRef.current) {
-      if (typeof content.loadingEnabled === 'boolean') setLoadingEnabled(content.loadingEnabled);
-      if (content.loadingDuration) {
-        setLoadingDuration(content.welcomeThemeVersion === WELCOME_THEME_VERSION ? content.loadingDuration : DEFAULT_LOADING_DURATION_MS);
-      }
-      if (typeof content.loadingTextSi === 'string') setLoadingTextSi(content.loadingTextSi);
-      if (typeof content.loadingTitleSi === 'string') setLoadingTitleSi(content.loadingTitleSi);
-      if (typeof content.loadingSubtitleSi === 'string') setLoadingSubtitleSi(content.loadingSubtitleSi);
-      if (content.welcomeBackgroundColor) setWelcomeBackgroundColor(content.welcomeBackgroundColor);
-      if (content.welcomeAccentColor) setWelcomeAccentColor(content.welcomeAccentColor);
-      if (typeof content.splashImage === 'string') setSplashImage(content.splashImage);
+    if (typeof content.selectedThemeId === 'string') setSelectedThemeId(content.selectedThemeId);
+    if (typeof content.loadingEnabled === 'boolean') setLoadingEnabled(content.loadingEnabled);
+    if (typeof content.loadingDuration === 'number') {
+      setLoadingDuration(content.welcomeThemeVersion === WELCOME_THEME_VERSION ? content.loadingDuration : DEFAULT_LOADING_DURATION_MS);
     }
+    if (typeof content.loadingTextSi === 'string') setLoadingTextSi(content.loadingTextSi);
+    if (typeof content.loadingTitleSi === 'string') setLoadingTitleSi(content.loadingTitleSi);
+    if (typeof content.loadingSubtitleSi === 'string') setLoadingSubtitleSi(content.loadingSubtitleSi);
+    if (typeof content.welcomeBackgroundColor === 'string') setWelcomeBackgroundColor(content.welcomeBackgroundColor);
+    if (typeof content.welcomeAccentColor === 'string') setWelcomeAccentColor(content.welcomeAccentColor);
+    if (typeof content.splashImage === 'string') setSplashImage(content.splashImage);
     if (typeof content.background3dEnabled === 'boolean') setBackground3dEnabled(content.background3dEnabled);
   };
 
@@ -602,7 +597,6 @@ export default function CompleteTempleApp() {
     const savedTheme = localStorage.getItem('temple_theme_v20');
     if (savedTheme) {
       const theme = JSON.parse(savedTheme);
-      localWelcomeThemeSavedRef.current = theme.welcomeThemeVersion === WELCOME_THEME_VERSION;
       if (theme.themes?.length) setThemes(theme.themes);
       setSelectedThemeId(theme.selectedThemeId || 'temple-night');
       setLoadingEnabled(theme.loadingEnabled !== false);
@@ -645,51 +639,104 @@ export default function CompleteTempleApp() {
       setActiveMusicId(tracks[0]?.id || '');
     }
 
-    const savedSlips = localStorage.getItem('temple_slips_v20');
-    if (savedSlips) setDonationSlips(JSON.parse(savedSlips));
-
-    const savedEnrollments = localStorage.getItem('temple_enrollments_v20');
-    if (savedEnrollments) setStudentEnrollments(JSON.parse(savedEnrollments));
-
-    const savedGallery = localStorage.getItem('temple_gallery_v20');
-    if (savedGallery) {
-      const parsedGallery = JSON.parse(savedGallery);
-      if (Array.isArray(parsedGallery)) setGalleryItems(parsedGallery.slice(0, 100));
-    }
-
     if (supabase) {
+      let siteContentLoaded = false;
       void (async () => {
         const client = supabase;
-        const { data: sessionData } = await client.auth.getSession();
+        const { data: sessionData, error: sessionError } = await client.auth.getSession();
+        if (sessionError) throw sessionError;
+        let adminRole: AdminRole | null = null;
         if (sessionData.session) {
-          setIsAdmin(true);
-          setAdminEmail(sessionData.session.user.email || '');
+          adminRole = getAdminRole(sessionData.session.user);
+          if (adminRole) {
+            setIsAdmin(true);
+            setCurrentRole(adminRole);
+            setAdminEmail(sessionData.session.user.email || '');
+          } else {
+            const { error } = await client.auth.signOut();
+            if (error) throw error;
+          }
         }
         const { data: cloudRow, error: cloudError } = await client
           .from('site_content')
           .select('content')
           .eq('id', 'main')
           .maybeSingle();
-        const { data: galleryRows, error: galleryError } = await client
-          .from('gallery')
-          .select('id, title, category, image_url, created_at')
-          .order('created_at', { ascending: false });
+        siteContentLoaded = !cloudError;
         if (cloudRow?.content) applySiteContent(cloudRow.content as SiteContent);
         if (cloudError) {
           setCloudSyncStatus('error');
           setCloudSyncError(cloudError.message);
         }
+        const { data: galleryRows, error: galleryError } = await client
+          .from('gallery')
+          .select('id, title, category, image_url, description, page_key, created_at')
+          .order('created_at', { ascending: false });
+        if (adminRole === 'super_admin' || adminRole === 'dhamma_admin') {
+          const { data: enrollmentRows, error: enrollmentError } = await client
+            .from('student_enrollments')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (enrollmentError) {
+            setCloudSyncStatus('error');
+            setCloudSyncError(enrollmentError.message);
+          } else {
+            setStudentEnrollments((enrollmentRows || []).map(row => ({
+              id: row.id,
+              studentName: row.student_name,
+              guardianName: row.guardian_name,
+              phone: row.phone,
+              grade: row.grade,
+              address: row.address,
+              status: row.status,
+              submittedAt: row.submitted_at,
+            })));
+          }
+        }
+        if (adminRole === 'super_admin') {
+          const { data: slipRows, error: slipError } = await client
+            .from('donation_slips')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (slipError) {
+            setCloudSyncStatus('error');
+            setCloudSyncError(slipError.message);
+          } else {
+            const signedSlips = await Promise.all((slipRows || []).map(row => client.storage
+              .from('donation-slips')
+              .createSignedUrl(row.slip_image_path, 86400)));
+            const signingError = signedSlips.find(result => result.error)?.error;
+            if (signingError || signedSlips.some(result => !result.data)) {
+              setCloudSyncStatus('error');
+              setCloudSyncError(signingError?.message || 'Donation slip image URL was not returned.');
+            } else {
+              setDonationSlips((slipRows || []).map((row, index) => ({
+                id: row.id,
+                donorName: row.donor_name,
+                amount: row.amount,
+                phone: row.phone,
+                slipImage: signedSlips[index].data!.signedUrl,
+                status: row.status,
+                submittedAt: row.submitted_at,
+              } satisfies DonationSlip)));
+            }
+          }
+        }
         if (!galleryError && galleryRows) {
-          setGalleryItems(current => galleryRows.map(row => ({
+          setGalleryItems(galleryRows.map(row => ({
             ...(row as GalleryItem),
-            ...current.find(item => item.id === row.id),
+            description: row.description || '',
+            pageKey: row.page_key || 'all',
           })).slice(0, 100));
+        } else if (galleryError) {
+          setCloudSyncStatus('error');
+          setCloudSyncError(galleryError.message);
         }
       })().catch(error => {
         setCloudSyncStatus('error');
         setCloudSyncError(error instanceof Error ? error.message : 'Could not load site settings.');
       }).finally(() => {
-        cloudReadyRef.current = true;
+        cloudReadyRef.current = siteContentLoaded;
         setIsWelcomeSettingsReady(true);
       });
     } else {
@@ -850,26 +897,28 @@ export default function CompleteTempleApp() {
         const canvas = renderEditedImage(img, 960);
         const processedBase64 = canvas.toDataURL('image/jpeg', 0.75);
         void (async () => {
-          let imageUrl = processedBase64;
           try {
-            if (supabase) {
-              const { data: sessionData } = await supabase.auth.getSession();
-              if (sessionData.session) {
-                const imageBlob = await fetch(processedBase64).then(response => response.blob());
-                const filePath = `admin/${crypto.randomUUID()}.jpg`;
-                const { error: uploadError } = await supabase.storage
-                  .from('temple-media')
-                  .upload(filePath, imageBlob, { contentType: 'image/jpeg', upsert: false });
-                if (uploadError) throw uploadError;
-                imageUrl = supabase.storage.from('temple-media').getPublicUrl(filePath).data.publicUrl;
-              }
-            }
+            if (!supabase) throw new Error('Supabase is not configured. Image upload is unavailable.');
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError) throw sessionError;
+            if (!sessionData.session) throw new Error('Admin login is required to upload images.');
+            const imageBlob = await fetch(processedBase64).then(response => response.blob());
+            const filePath = `admin/${crypto.randomUUID()}.jpg`;
+            const { error: uploadError } = await supabase.storage
+              .from('temple-media')
+              .upload(filePath, imageBlob, { contentType: 'image/jpeg', upsert: false });
+            if (uploadError) throw uploadError;
+            const imageUrl = supabase.storage.from('temple-media').getPublicUrl(filePath).data.publicUrl;
+            onImageEditedCallback(imageUrl);
+            setRawImageForEdit(null);
           } catch (error) {
-            setCloudSyncError(error instanceof Error ? error.message : 'Image upload failed');
+            const message = error instanceof Error ? error.message : 'Image upload failed.';
+            setImageProcessingError(message);
+            setCloudSyncError(message);
+            setCloudSyncStatus('error');
+          } finally {
+            setIsImageProcessing(false);
           }
-          onImageEditedCallback(imageUrl);
-          setRawImageForEdit(null);
-          setIsImageProcessing(false);
         })();
       } catch (error) {
         setImageProcessingError(error instanceof Error ? error.message : 'Could not process this image.');
@@ -943,35 +992,32 @@ export default function CompleteTempleApp() {
     e.preventDefault();
 
     const trimmedEmail = adminEmail.trim();
-    const localFallbackAllowed = inputPassword === LOCAL_ADMIN_PASSWORD && (!supabase || !trimmedEmail || !trimmedEmail.includes('@'));
-
-    if (localFallbackAllowed) {
-      setIsAdmin(true);
-      setCurrentRole(loginRole);
-      setAdminEmail(trimmedEmail || 'local-admin@temple.local');
-      setShowLoginModal(false);
-      setInputPassword('');
-      return;
-    }
-
     if (!supabase) {
-      alert('Local admin mode හි ප්‍රවේශ වීම සඳහා මුරපදය 1234 විය යුතුය.');
+      alert('Admin login is unavailable because Supabase is not configured.');
       return;
     }
 
     if (!trimmedEmail) {
-      alert('Cloud admin login සඳහා Supabase email එකක් අවශ්‍යයි.');
+      alert('Admin login සඳහා email ලිපිනයක් ඇතුළත් කරන්න.');
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: trimmedEmail.toLowerCase(),
       password: inputPassword,
     });
 
     if (!error) {
+      const role = getAdminRole(data.user);
+      if (!role) {
+        const { error: signOutError } = await supabase.auth.signOut();
+        alert(signOutError
+          ? `මෙම ගිණුමට admin permission එකක් ලබා දී නැත. Logout වීමත් අසාර්ථකයි: ${signOutError.message}`
+          : 'මෙම ගිණුමට admin permission එකක් ලබා දී නැත. Supabase App Metadata හි admin_role එක සකසන්න.');
+        return;
+      }
       setIsAdmin(true);
-      setCurrentRole(loginRole);
+      setCurrentRole(role);
       setShowLoginModal(false);
       setInputPassword('');
       return;
@@ -1010,7 +1056,6 @@ export default function CompleteTempleApp() {
     }
 
     setCategories(updated);
-    localStorage.setItem('temple_categories_v20', JSON.stringify(updated));
     cancelCategoryEdit();
   };
 
@@ -1026,7 +1071,6 @@ export default function CompleteTempleApp() {
     if (!confirm('මෙම කාණ්ඩය මකා දැමීමට අවශ්‍යද?')) return;
     const updated = categories.filter(c => c.id !== id);
     setCategories(updated);
-    localStorage.setItem('temple_categories_v20', JSON.stringify(updated));
     if (activeTab === id) setActiveTab('history');
   };
 
@@ -1051,12 +1095,6 @@ export default function CompleteTempleApp() {
   };
 
   const persistPosts = (updated: Post[]) => {
-    try {
-      localStorage.setItem('temple_posts_v20', JSON.stringify(updated));
-    } catch {
-      alert('ලිපිය සුරැකිය නොහැක. Browser storage ඉඩ අවසන් වී ඇත. කුඩා image එකක් භාවිතා කර නැවත උත්සාහ කරන්න.');
-      return false;
-    }
     setPosts(updated);
     return true;
   };
@@ -1089,7 +1127,7 @@ export default function CompleteTempleApp() {
       if (!persistPosts(updated)) return;
     }
     cancelPostEdit();
-    alert('ලිපිය සාර්ථකව සුරකියි!');
+    alert('වෙනස්කම් Supabase වෙත sync වෙමින් පවතී. Admin dashboard එකේ cloud status බලන්න.');
   };
 
   const cancelPostEdit = () => {
@@ -1101,7 +1139,6 @@ export default function CompleteTempleApp() {
     if (confirm('මෙම ලිපිය පද්ධතියෙන් මකා දැමීමට තහවුරු කරන්න?')) {
       const updated = posts.filter(p => p.id !== id);
       setPosts(updated);
-      localStorage.setItem('temple_posts_v20', JSON.stringify(updated));
     }
   };
 
@@ -1109,6 +1146,7 @@ export default function CompleteTempleApp() {
     setEditingWinnerId(null);
     setWinnerName('');
     setWinnerAchievement('');
+    setWinnerPlace('');
     setWinnerGrade('');
     setWinnerYear(String(new Date().getFullYear()));
     setWinnerImage('');
@@ -1131,13 +1169,11 @@ export default function CompleteTempleApp() {
       [section]: moveItem(peopleBySection[section] || [], index, direction),
     };
     setPeopleBySection(nextPeopleBySection);
-    localStorage.setItem('temple_people_v20', JSON.stringify(nextPeopleBySection));
   };
 
   const moveWinnerCard = (index: number, direction: -1 | 1) => {
     const nextWinners = moveItem(winners, index, direction);
     setWinners(nextWinners);
-    localStorage.setItem('temple_winners_v20', JSON.stringify(nextWinners));
   };
 
   const savePersonCard = (e: React.FormEvent) => {
@@ -1165,9 +1201,8 @@ export default function CompleteTempleApp() {
       ]),
     ) as Record<string, PeopleCard[]>;
     nextPeopleBySection[section] = [person, ...(nextPeopleBySection[section] || [])];
-
     setPeopleBySection(nextPeopleBySection);
-    localStorage.setItem('temple_people_v20', JSON.stringify(nextPeopleBySection));
+    setPeopleBySection(nextPeopleBySection);
     resetPeopleForm();
   };
 
@@ -1186,10 +1221,6 @@ export default function CompleteTempleApp() {
     if (!confirm('මෙම person card එක මකා දැමීමට අවශ්‍යද?')) return;
     const nextList = (peopleBySection[section] || []).filter(person => person.id !== id);
     setPeopleBySection(current => ({ ...current, [section]: nextList }));
-    localStorage.setItem('temple_people_v20', JSON.stringify({
-      ...peopleBySection,
-      [section]: nextList,
-    }));
     if (editingPersonId === id) resetPeopleForm();
   };
 
@@ -1203,6 +1234,7 @@ export default function CompleteTempleApp() {
       id: editingWinnerId || `winner_${crypto.randomUUID()}`,
       name: winnerName.trim(),
       achievement: winnerAchievement.trim(),
+      place: winnerPlace.trim(),
       grade: winnerGrade.trim(),
       year: winnerYear.trim(),
       image: winnerImage,
@@ -1211,9 +1243,8 @@ export default function CompleteTempleApp() {
     const nextWinners = editingWinnerId
       ? winners.map(item => item.id === editingWinnerId ? winner : item)
       : [winner, ...winners];
-
     setWinners(nextWinners);
-    localStorage.setItem('temple_winners_v20', JSON.stringify(nextWinners));
+    setWinners(nextWinners);
     resetWinnerForm();
   };
 
@@ -1221,6 +1252,7 @@ export default function CompleteTempleApp() {
     setEditingWinnerId(winner.id);
     setWinnerName(winner.name);
     setWinnerAchievement(winner.achievement);
+    setWinnerPlace(winner.place || '');
     setWinnerGrade(winner.grade);
     setWinnerYear(winner.year);
     setWinnerImage(winner.image);
@@ -1230,7 +1262,6 @@ export default function CompleteTempleApp() {
     if (!confirm('මෙම ජයග්‍රාහකයාගේ තොරතුරු මකා දමන්නද?')) return;
     const nextWinners = winners.filter(winner => winner.id !== id);
     setWinners(nextWinners);
-    localStorage.setItem('temple_winners_v20', JSON.stringify(nextWinners));
     if (editingWinnerId === id) resetWinnerForm();
   };
 
@@ -1250,8 +1281,7 @@ export default function CompleteTempleApp() {
         logoImage: pageLogo,
       } : p);
       setCustomPages(updated);
-      localStorage.setItem('temple_pages_v20', JSON.stringify(updated));
-      alert('පිටුව සාර්ථකව යාවත්කාලීන විය!');
+      alert('පිටුවේ වෙනස්කම් Supabase වෙත sync වෙමින් පවතී. Admin dashboard එකේ cloud status බලන්න.');
     } else {
       const newPage: CustomPage = {
         id: `page_${crypto.randomUUID()}`,
@@ -1264,8 +1294,7 @@ export default function CompleteTempleApp() {
       };
       const updated = [...customPages, newPage];
       setCustomPages(updated);
-      localStorage.setItem('temple_pages_v20', JSON.stringify(updated));
-      alert('අලුත් පිටුව සාර්ථකව එකතු කරන ලදී!');
+      alert('නව පිටුව Supabase වෙත sync වෙමින් පවතී. Admin dashboard එකේ cloud status බලන්න.');
     }
     cancelPageEdit();
   };
@@ -1291,7 +1320,6 @@ export default function CompleteTempleApp() {
     if (confirm('මෙම පිටුව මකා දැමීමට අවශ්‍යද?')) {
       const updated = customPages.filter(p => p.id !== id);
       setCustomPages(updated);
-      localStorage.setItem('temple_pages_v20', JSON.stringify(updated));
       if (activeTab === id) setActiveTab('history');
     }
   };
@@ -1299,39 +1327,8 @@ export default function CompleteTempleApp() {
   // Save General Settings
   const saveGeneralSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    localWelcomeThemeSavedRef.current = true;
-    removeDuplicateSplashImage('temple_branding_v20');
-    removeDuplicateSplashImage('temple_media_v20');
-    localStorage.setItem('temple_branding_v20', JSON.stringify({
-      nameSi: templeNameSi, nameEn: templeNameEn, locSi: templeLocationSi, locEn: templeLocationEn, ticker: tickerText, heroCover, badgeLogo
-    }));
-    localStorage.setItem('temple_event_v20', JSON.stringify({
-      titleSi: eventTitleSi, titleEn: eventTitleEn, date: eventTargetDate, upcomingEvents
-    }));
-    localStorage.setItem('temple_bank_v20', JSON.stringify({
-      name: bankName, accountName: bankAccountName, accountNumber: bankAccountNumber, branch: bankBranch
-    }));
-    localStorage.setItem('temple_live_v20', JSON.stringify({
-      enabled: isLiveStreaming, url: liveStreamUrl
-    }));
-    localStorage.setItem('temple_categories_v20', JSON.stringify(categories));
-    localStorage.setItem('temple_media_v20', JSON.stringify({
-      bgWallpaper, backgroundVideo, sectionWallpapers, sectionPhotos, heroCover, badgeLogo, timerCover, background3dEnabled
-    }));
-    localStorage.setItem('temple_section_photos_v20', JSON.stringify(sectionPhotos));
-    localStorage.setItem('temple_verse_v20', JSON.stringify({
-      verse: dailyVerseSi, meaning: dailyVerseMeaningSi
-    }));
-    localStorage.setItem('temple_puja_v20', JSON.stringify({
-      morning: pujaMorning, noon: pujaNoon, evening: pujaEvening,
-      morningImg: pujaMorningImg, noonImg: pujaNoonImg, eveningImg: pujaEveningImg
-    }));
-    localStorage.setItem('temple_music_v20', JSON.stringify(musicTracks));
-    localStorage.setItem('temple_theme_v20', JSON.stringify({ themes, selectedThemeId, loadingEnabled, loadingDuration, loadingTextSi, loadingTitleSi, loadingSubtitleSi, welcomeBackgroundColor, welcomeAccentColor, splashImage, background3dEnabled }));
-    localStorage.setItem('temple_winners_v20', JSON.stringify(winners));
-    localStorage.setItem('temple_people_v20', JSON.stringify(peopleBySection));
-    localStorage.setItem('temple_winner_settings_v20', JSON.stringify({ showWinnersOnHome, winnerTopic, winnerTopicPlacement, winnerDisplayCount }));
-    alert('සියලුම සැකසුම් සාර්ථකව යාවත්කාලීන විය!');
+    if (!supabase || !isAdmin) return alert('සැකසුම් Supabase එකට save කිරීමට admin login සහ cloud සම්බන්ධතාවය අවශ්‍යයි.');
+    setCloudSyncRetry(value => value + 1);
   };
 
   const resetWelcomeTheme = () => {
@@ -1385,7 +1382,6 @@ export default function CompleteTempleApp() {
         coverImage: musicCover || track.coverImage || splashImage,
       } : track);
       setMusicTracks(updated);
-      localStorage.setItem('temple_music_v20', JSON.stringify(updated));
       setEditingMusicId(null);
     } else {
       const newTrack: MusicTrack = {
@@ -1398,7 +1394,6 @@ export default function CompleteTempleApp() {
       const updated = [...musicTracks, newTrack];
       setMusicTracks(updated);
       setActiveMusicId(newTrack.id);
-      localStorage.setItem('temple_music_v20', JSON.stringify(updated));
     }
 
     setMusicTitle('');
@@ -1417,7 +1412,6 @@ export default function CompleteTempleApp() {
     if (!confirm('මෙම ගීතය මකා දැමීමට අවශ්‍යද?')) return;
     const updated = musicTracks.filter(track => track.id !== id);
     setMusicTracks(updated);
-    localStorage.setItem('temple_music_v20', JSON.stringify(updated));
     if (editingMusicId === id) {
       setEditingMusicId(null);
       setMusicTitle('');
@@ -1478,12 +1472,25 @@ export default function CompleteTempleApp() {
     }
   };
 
-  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => setMusicUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    if (!supabase) return alert('Audio upload සඳහා Supabase සම්බන්ධතාවය අවශ්‍යයි.');
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) throw new Error('Audio upload කිරීමට admin login වන්න.');
+      const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp3';
+      const filePath = `music/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from('temple-media').upload(filePath, file, {
+        contentType: file.type || 'audio/mpeg',
+        upsert: false,
+      });
+      if (error) throw error;
+      setMusicUrl(supabase.storage.from('temple-media').getPublicUrl(filePath).data.publicUrl);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Audio upload failed.');
+    }
   };
 
   const resetGalleryForm = () => {
@@ -1498,6 +1505,7 @@ export default function CompleteTempleApp() {
   const saveGalleryItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return alert('Gallery manage කිරීමට admin login අවශ්‍යයි.');
+    if (!supabase) return alert('Gallery changes require a Supabase connection.');
     if (!galleryTitle.trim() || !galleryImage) return alert('Title සහ image එක ඇතුළත් කරන්න.');
 
     if (!editingGalleryId && galleryItems.length >= 100) {
@@ -1510,38 +1518,27 @@ export default function CompleteTempleApp() {
       category: galleryCategory.trim() || null,
       image_url: galleryImage,
       description: galleryDescription.trim(),
-      pageKey: galleryPageKey || 'all',
+      page_key: galleryPageKey || 'all',
     };
-    let savedItem: GalleryItem;
-
-    if (supabase) {
-      const client = supabase;
-      const dbValues = { title: values.title, category: values.category, image_url: values.image_url };
-      const result = editingGalleryId
-        ? await client.from('gallery').update(dbValues).eq('id', editingGalleryId).select().single()
-        : await client.from('gallery').insert(dbValues).select().single();
-      if (result.error || !result.data) {
-        alert(`Gallery save failed: ${result.error?.message || 'Unknown error'}`);
-        return;
-      }
-      savedItem = { ...(result.data as GalleryItem), description: values.description, pageKey: values.pageKey };
-    } else {
-      savedItem = {
-        id: editingGalleryId || Date.now(),
-        title: values.title,
-        category: values.category,
-        description: values.description,
-        pageKey: values.pageKey,
-        image_url: values.image_url,
-        created_at: new Date().toISOString(),
-      };
+    const client = supabase;
+    const dbValues = values;
+    const result = editingGalleryId
+      ? await client.from('gallery').update(dbValues).eq('id', editingGalleryId).select().single()
+      : await client.from('gallery').insert(dbValues).select().single();
+    if (result.error || !result.data) {
+      alert(`Gallery save failed: ${result.error?.message || 'Unknown error'}`);
+      return;
     }
+    const savedItem: GalleryItem = {
+      ...(result.data as GalleryItem),
+      description: values.description,
+      pageKey: values.page_key,
+    };
 
     const updatedGallery = editingGalleryId
       ? galleryItems.map(item => item.id === savedItem.id ? savedItem : item)
       : [savedItem, ...galleryItems].slice(0, 100);
     setGalleryItems(updatedGallery);
-    localStorage.setItem('temple_gallery_v20', JSON.stringify(updatedGallery));
     resetGalleryForm();
   };
 
@@ -1557,31 +1554,33 @@ export default function CompleteTempleApp() {
 
   const deleteGalleryItem = async (id: number) => {
     if (!isAdmin || !confirm('මෙම photo එක gallery එකෙන් මකා දමන්නද?')) return;
-    if (supabase) {
-      const { error } = await supabase.from('gallery').delete().eq('id', id);
-      if (error) {
-        alert(`Gallery delete failed: ${error.message}`);
-        return;
-      }
+    if (!supabase) return alert('Gallery changes require a Supabase connection.');
+    const { error } = await supabase.from('gallery').delete().eq('id', id);
+    if (error) {
+      alert(`Gallery delete failed: ${error.message}`);
+      return;
     }
     const updatedGallery = galleryItems.filter(item => item.id !== id);
     setGalleryItems(updatedGallery);
-    localStorage.setItem('temple_gallery_v20', JSON.stringify(updatedGallery));
     if (editingGalleryId === id) resetGalleryForm();
   };
 
   // Donation Slips Status Update
-  const updateSlipStatus = (id: string, status: 'approved' | 'rejected') => {
+  const updateSlipStatus = async (id: string, status: 'approved' | 'rejected') => {
+    if (!isAdmin || !canAccess('slips') || !supabase) return alert('මෙම ක්‍රියාවට admin permission සහ Supabase සම්බන්ධතාවය අවශ්‍යයි.');
+    const { data, error } = await supabase.from('donation_slips').update({ status }).eq('id', id).select('id').single();
+    if (error || !data) return alert(`රිසිට්පතේ තත්ත්වය cloud එකට සුරැකිය නොහැක: ${error?.message || 'Record not found.'}`);
     const updated = donationSlips.map(s => s.id === id ? { ...s, status } : s);
     setDonationSlips(updated);
-    localStorage.setItem('temple_slips_v20', JSON.stringify(updated));
   };
 
   // Student Enrollment Status Update
-  const updateEnrollmentStatus = (id: string, status: 'approved' | 'rejected') => {
+  const updateEnrollmentStatus = async (id: string, status: 'approved' | 'rejected') => {
+    if (!isAdmin || !canAccess('students') || !supabase) return alert('මෙම ක්‍රියාවට admin permission සහ Supabase සම්බන්ධතාවය අවශ්‍යයි.');
+    const { data, error } = await supabase.from('student_enrollments').update({ status }).eq('id', id).select('id').single();
+    if (error || !data) return alert(`ලියාපදිංචි තත්ත්වය cloud එකට සුරැකිය නොහැක: ${error?.message || 'Record not found.'}`);
     const updated = studentEnrollments.map(s => s.id === id ? { ...s, status } : s);
     setStudentEnrollments(updated);
-    localStorage.setItem('temple_enrollments_v20', JSON.stringify(updated));
   };
 
   // Export Data to CSV (New Feature)
@@ -1613,11 +1612,47 @@ export default function CompleteTempleApp() {
   };
 
   // Donation Submission Form State
-  const submitDonationSlip = (e: React.FormEvent) => {
+  const handleDonationSlipFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      return alert('JPG, PNG හෝ WebP රිසිට්පතක් තෝරන්න.');
+    }
+    if (file.size > 5 * 1024 * 1024) return alert('රිසිට්පත 5 MB ට වඩා කුඩා විය යුතුයි.');
+    const reader = new FileReader();
+    reader.onerror = () => alert('රිසිට්පත කියවීමට නොහැකි විය. නැවත උත්සාහ කරන්න.');
+    reader.onload = () => {
+      if (typeof reader.result === 'string') setDonorSlipImg(reader.result);
+      else alert('රිසිට්පත කියවීමට නොහැකි විය. නැවත උත්සාහ කරන්න.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const submitDonationSlip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!donorName || !donorPhone || !donorSlipImg) return alert('කරුණාකර සියලු විස්තර සහ රිසිට්පත ඇතුළත් කරන්න.');
+    if (!supabase) return alert('රිසිට්පත යැවීමට Supabase සම්බන්ධතාවය සකසා තිබිය යුතුයි.');
+    const client = supabase;
+    let filePath = '';
+    try {
+      const imageBlob = await fetch(donorSlipImg).then(response => response.blob());
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(imageBlob.type)) {
+        throw new Error('JPG, PNG හෝ WebP රිසිට්පතක් තෝරන්න.');
+      }
+      if (imageBlob.size > 5 * 1024 * 1024) throw new Error('රිසිට්පත 5 MB ට වඩා කුඩා විය යුතුයි.');
+      const extension = imageBlob.type.split('/')[1];
+      filePath = `submissions/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await client.storage
+        .from('donation-slips')
+        .upload(filePath, imageBlob, { contentType: imageBlob.type, upsert: false });
+      if (uploadError) throw uploadError;
+    } catch (error) {
+      return alert(error instanceof Error ? error.message : 'රිසිට්පත upload කළ නොහැක.');
+    }
+
     const newSlip: DonationSlip = {
-      id: `slip_${Date.now()}`,
+      id: crypto.randomUUID(),
       donorName,
       amount: donorAmount || 'නොදක්වා ඇත',
       phone: donorPhone,
@@ -1625,19 +1660,33 @@ export default function CompleteTempleApp() {
       status: 'pending',
       submittedAt: new Date().toLocaleDateString('si-LK'),
     };
-    const updated = [newSlip, ...donationSlips];
-    setDonationSlips(updated);
-    localStorage.setItem('temple_slips_v20', JSON.stringify(updated));
+    const { error } = await client.from('donation_slips').insert({
+      id: newSlip.id,
+      donor_name: newSlip.donorName,
+      amount: newSlip.amount,
+      phone: newSlip.phone,
+      slip_image_path: filePath,
+      status: newSlip.status,
+      submitted_at: newSlip.submittedAt,
+    });
+    if (error) {
+      const { error: cleanupError } = await client.storage.from('donation-slips').remove([filePath]);
+      return alert(cleanupError
+        ? `රිසිට්පත සුරැකීම අසාර්ථකයි: ${error.message}. Upload cleanup අසාර්ථකයි: ${cleanupError.message}`
+        : `රිසිට්පත සුරැකීම අසාර්ථකයි: ${error.message}`);
+    }
+    setDonationSlips(current => [newSlip, ...current]);
     alert('ඔබගේ බැංකු රිසිට්පත සාර්ථකව යොමු කෙරිණි!');
     setDonorName(''); setDonorAmount(''); setDonorPhone(''); setDonorSlipImg(''); setShowDonateModal(false);
   };
 
   // Student Enrollment Handler
-  const submitStudentEnrollment = (e: React.FormEvent) => {
+  const submitStudentEnrollment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentName || !studentPhone) return alert('ශිෂ්‍යයාගේ නම සහ දුරකථන අංකය ඇතුළත් කරන්න.');
+    if (!supabase) return alert('අයදුම්පත යැවීමට Supabase සම්බන්ධතාවය සකසා තිබිය යුතුයි.');
     const newEnrollment: StudentEnrollment = {
-      id: `std_${Date.now()}`,
+      id: crypto.randomUUID(),
       studentName,
       guardianName,
       phone: studentPhone,
@@ -1646,9 +1695,18 @@ export default function CompleteTempleApp() {
       status: 'pending',
       submittedAt: new Date().toLocaleDateString('si-LK'),
     };
-    const updated = [newEnrollment, ...studentEnrollments];
-    setStudentEnrollments(updated);
-    localStorage.setItem('temple_enrollments_v20', JSON.stringify(updated));
+    const { error } = await supabase.from('student_enrollments').insert({
+      id: newEnrollment.id,
+      student_name: newEnrollment.studentName,
+      guardian_name: newEnrollment.guardianName,
+      phone: newEnrollment.phone,
+      grade: newEnrollment.grade,
+      address: newEnrollment.address,
+      status: newEnrollment.status,
+      submitted_at: newEnrollment.submittedAt,
+    });
+    if (error) return alert(`අයදුම්පත cloud එකට යැවිය නොහැක: ${error.message}`);
+    setStudentEnrollments(current => [newEnrollment, ...current]);
     alert('දහම් පාසල් ලියාපදිංචි වීමේ අයදුම්පත සාර්ථකව භාරගන්නා ලදී!');
     setStudentName(''); setGuardianName(''); setStudentPhone(''); setStudentAddress(''); setShowEnrollModal(false);
   };
@@ -1806,39 +1864,9 @@ export default function CompleteTempleApp() {
     .filter(item => !item.pageKey || item.pageKey === 'all' || item.pageKey === activeTab)
     .slice(0, 100);
 
-  const removeDuplicateSplashImage = (storageKey: string) => {
-    const storedValue = localStorage.getItem(storageKey);
-    if (!storedValue) return;
-    const settings = JSON.parse(storedValue) as Record<string, unknown>;
-    if (typeof settings.splashImage !== 'string') return;
-    delete settings.splashImage;
-    localStorage.removeItem(storageKey);
-    localStorage.setItem(storageKey, JSON.stringify(settings));
-  };
-
   const saveWelcomeThemeSettings = () => {
-    try {
-      removeDuplicateSplashImage('temple_branding_v20');
-      removeDuplicateSplashImage('temple_media_v20');
-      localStorage.setItem('temple_theme_v20', JSON.stringify({
-        themes,
-        selectedThemeId,
-        loadingEnabled,
-        loadingDuration,
-        welcomeThemeVersion: WELCOME_THEME_VERSION,
-        loadingTextSi,
-        loadingTitleSi,
-        loadingSubtitleSi,
-        welcomeBackgroundColor,
-        welcomeAccentColor,
-        splashImage,
-        background3dEnabled,
-      }));
-      localWelcomeThemeSavedRef.current = true;
-      alert('Welcome theme saved successfully.');
-    } catch {
-      alert('Browser storage is full. Remove unused uploaded images or sign in to sync the welcome theme to the cloud.');
-    }
+    if (!supabase || !isAdmin) return alert('Welcome theme එක Supabase එකට save කිරීමට admin login සහ cloud සම්බන්ධතාවය අවශ්‍යයි.');
+    setCloudSyncRetry(value => value + 1);
   };
 
   const siteContent = useMemo<SiteContent>(() => ({
@@ -1889,6 +1917,7 @@ export default function CompleteTempleApp() {
     selectedThemeId,
     loadingEnabled,
     loadingDuration,
+    welcomeThemeVersion: WELCOME_THEME_VERSION,
     loadingTextSi,
     loadingTitleSi,
     loadingSubtitleSi,
@@ -1912,25 +1941,23 @@ export default function CompleteTempleApp() {
   useEffect(() => {
     if (!supabase || !isAdmin || !cloudReadyRef.current) return;
     const client = supabase;
+    setCloudSyncStatus('loading');
     const syncTimer = window.setTimeout(async () => {
-      setCloudSyncStatus('loading');
-      const { data: sessionData } = await client.auth.getSession();
-      if (!sessionData.session) {
-        setCloudSyncStatus('error');
-        setCloudSyncError('Admin Supabase session is missing. Login again.');
-        return;
-      }
-      const { error } = await client.from('site_content').upsert({
-        id: 'main',
-        content: siteContent,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) {
-        setCloudSyncStatus('error');
-        setCloudSyncError(error.message);
-      } else {
+      try {
+        const { data: sessionData, error: sessionError } = await client.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!sessionData.session) throw new Error('Admin Supabase session is missing. Login again.');
+        const { error } = await client.from('site_content').upsert({
+          id: 'main',
+          content: siteContent,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) throw error;
         setCloudSyncStatus('saved');
         setCloudSyncError('');
+      } catch (error) {
+        setCloudSyncStatus('error');
+        setCloudSyncError(error instanceof Error ? error.message : 'Could not save site content to Supabase.');
       }
     }, 700);
     return () => window.clearTimeout(syncTimer);
@@ -2340,7 +2367,7 @@ export default function CompleteTempleApp() {
         <section className="max-w-6xl mx-auto px-4 mt-10" aria-labelledby="home-winners-title">
           <div className="winner-showcase overflow-hidden rounded-3xl border border-amber-300/30 shadow-2xl">
             {winnerSectionPhotos.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 border-b border-amber-200/20 p-3 sm:grid-cols-3 sm:p-4 lg:grid-cols-5">
+              <div className="grid grid-cols-2 gap-2 border-b border-amber-200/20 p-3 sm:grid-cols-3 sm:p-4 lg:grid-cols-5">
                 {winnerSectionPhotos.map((photo, index) => (
                   <div key={`${photo}-${index}`} className="overflow-hidden rounded-2xl border border-amber-500/20 bg-slate-900">
                     <SiteImage src={photo} alt="Winner showcase" loading="lazy" decoding="async" className="h-16 w-full bg-slate-950 object-contain sm:h-24" />
@@ -2348,7 +2375,7 @@ export default function CompleteTempleApp() {
                 ))}
               </div>
             )}
-            <div className="flex flex-wrap items-end justify-between gap-4 border-b border-amber-200/20 px-6 py-5 sm:px-8">
+            <div className="winner-showcase-header flex flex-wrap items-end justify-between gap-4 border-b border-amber-200/20 px-6 py-5 sm:px-8">
               <div className={winnerTopicPlacement === 'below' ? 'order-2 w-full' : ''}>
                 <h2 id="home-winners-title" className="text-2xl font-black leading-tight text-amber-300 drop-shadow-[0_2px_16px_rgba(251,191,36,0.2)] sm:text-3xl md:text-4xl">
                   {lang === 'si' ? 'ශ්‍රී උපනන්ද දහම් පාසල' : 'Sri Upananda Dhamma School'}
@@ -2357,24 +2384,23 @@ export default function CompleteTempleApp() {
               </div>
               <span className="text-xs font-bold text-amber-100/80">ජයග්‍රාහකයන් {visibleWinners.length} දෙනෙක්</span>
             </div>
-            <div className={`grid justify-items-center gap-2 p-3 sm:grid-cols-2 sm:gap-4 sm:p-6 lg:grid-cols-3 ${visibleWinners.length === 1 ? 'grid-cols-1' : visibleWinners.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            <div className="winner-card-grid grid grid-cols-2 justify-items-center gap-3 p-3 sm:gap-5 sm:p-6 md:grid-cols-2 xl:grid-cols-3">
               {visibleWinners.map((winner, index) => (
                 <article
                   key={winner.id}
                   onClick={() => setSelectedWinner(winner)}
-                  className="winner-card group relative min-w-0 cursor-pointer overflow-hidden rounded-2xl border border-white/15 bg-slate-950/65 transition hover:border-amber-400/50 hover:shadow-lg hover:shadow-amber-500/10"
-                  style={{ width: '192px', height: '220px', animationDelay: `${index * 70}ms` }}
+                  className="winner-card group relative flex h-full w-full max-w-sm min-w-0 cursor-pointer flex-col items-center overflow-hidden rounded-2xl border border-white/15 bg-slate-950/65 p-3 text-center transition hover:border-amber-400/50 hover:shadow-lg hover:shadow-amber-500/10 sm:p-4"
+                  style={{ animationDelay: `${index * 70}ms` }}
                 >
-                  <div className="flex h-24 justify-center overflow-hidden sm:h-28">
-                    <div className="relative h-full w-24 overflow-hidden rounded-xl bg-slate-900 sm:w-28">
-                      <SiteImage src={winner.image} alt={winner.name} loading="lazy" decoding="async" className="h-full w-full object-contain" />
-                    </div>
-                    <span className="absolute left-1 top-1 rounded-full border border-amber-100/40 bg-slate-950/75 px-1.5 py-1 text-[8px] font-black text-amber-100 backdrop-blur sm:left-3 sm:top-3 sm:px-3 sm:text-[10px]">{winner.year}</span>
+                  <div className="relative mb-3 h-40 w-full overflow-hidden rounded-xl bg-slate-900 sm:h-56">
+                    <SiteImage src={winner.image} alt={winner.name} loading="lazy" decoding="async" className="h-full w-full object-contain object-center" />
+                    <span className="absolute left-2 top-2 rounded-full border border-amber-100/40 bg-slate-950/80 px-3 py-1 text-[10px] font-black text-amber-100 backdrop-blur">{winner.year}</span>
                   </div>
-                  <div className="space-y-1 p-2">
-                    <h3 className="line-clamp-2 text-xs font-black text-white sm:text-lg">{winner.name}</h3>
-                    <p className="line-clamp-2 text-[10px] leading-relaxed text-slate-200 sm:text-xs">{winner.achievement}</p>
-                    {winner.grade && <p className="pt-1 text-[9px] font-bold text-amber-100/70 sm:text-[10px]">ශ්‍රේණිය {winner.grade}</p>}
+                  <div className="flex w-full flex-1 flex-col items-center space-y-2">
+                    {winner.place && <p className="text-xs font-black text-amber-300">{winner.place}</p>}
+                    <h3 className="break-words text-sm font-black text-white sm:text-lg">{winner.name}</h3>
+                    <p className="break-words text-[11px] leading-relaxed text-slate-200 sm:text-sm">{winner.achievement}</p>
+                    {winner.grade && <p className="pt-1 text-[10px] font-bold text-amber-100/70 sm:text-xs">ශ්‍රේණිය {winner.grade}</p>}
                     {isAdmin && canAccess('winners') && (
                       <button
                         type="button"
@@ -2383,7 +2409,7 @@ export default function CompleteTempleApp() {
                           editWinner(winner);
                           setAdminSubTab('winners');
                         }}
-                        className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300"
+                        className="mt-auto rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-300"
                       >
                         Edit Winner
                       </button>
@@ -3307,6 +3333,10 @@ export default function CompleteTempleApp() {
                       <input type="text" value={winnerName} onChange={e => setWinnerName(e.target.value)} required className="w-full p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-white" />
                     </div>
                     <div>
+                      <label className="block font-bold text-slate-300 mb-1">Place / ස්ථානය</label>
+                      <input type="text" value={winnerPlace} onChange={e => setWinnerPlace(e.target.value)} placeholder="උදා: 1 වන ස්ථානය" className="w-full p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-white" />
+                    </div>
+                    <div>
                       <label className="block font-bold text-slate-300 mb-1">Grade</label>
                       <input type="text" value={winnerGrade} onChange={e => setWinnerGrade(e.target.value)} className="w-full p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 text-white" />
                     </div>
@@ -3352,7 +3382,8 @@ export default function CompleteTempleApp() {
                           <SiteImage src={winner.image} alt={winner.name} className="h-14 w-14 rounded-xl border border-amber-500/20 bg-slate-950 object-contain" />
                           <div className="flex-1 min-w-0">
                             <span className="font-bold text-white block truncate">{winner.name}</span>
-                            <span className="text-[10px] text-amber-400 block truncate">{winner.achievement}</span>
+                            {winner.place && <span className="text-[10px] text-amber-300 block break-words">{winner.place}</span>}
+                            <span className="text-[10px] text-amber-400 block break-words">{winner.achievement}</span>
                           </div>
                           <div className="flex flex-wrap justify-end gap-2">
                             <button type="button" onClick={() => moveWinnerCard(index, -1)} disabled={index === 0} aria-label={`Move ${winner.name} up`} className="rounded-lg border border-slate-600 px-2 py-1.5 text-slate-200 enabled:hover:bg-slate-700 disabled:opacity-40">↑</button>
@@ -3636,28 +3667,16 @@ export default function CompleteTempleApp() {
               <button onClick={() => setShowLoginModal(false)} className="text-slate-400 hover:text-white text-lg">✕</button>
             </div>
             <form onSubmit={handleAdminLogin} className="space-y-4 text-xs">
-              {(supabase || !supabase) && (
-                <div>
-                  <label className="block font-bold text-slate-300 mb-1">Admin email</label>
-                  <input
-                    type="email"
-                    value={adminEmail}
-                    onChange={e => setAdminEmail(e.target.value)}
-                    placeholder="admin@example.com"
-                    className="w-full p-3 rounded-xl bg-slate-950 border border-amber-500/30 text-white"
-                  />
-                </div>
-              )}
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] text-amber-100">
-                Local mode: use password <span className="font-black">1234</span> and leave email blank to edit this browser only.
-              </div>
               <div>
-                <label className="block font-bold text-slate-300 mb-1">භූමිකාව තෝරන්න (Role)</label>
-                <select value={loginRole} onChange={e => setLoginRole(e.target.value as AdminRole)} className="w-full p-3 rounded-xl bg-slate-950 border border-amber-500/30 text-white">
-                  <option value="super_admin">Super Admin (ප්‍රධාන පරිපාලක)</option>
-                  <option value="editor">Editor (ලිපි සංස්කාරක)</option>
-                  <option value="dhamma_admin">Dhamma Admin (දහම් පාසල් පරිපාලක)</option>
-                </select>
+                <label className="block font-bold text-slate-300 mb-1">Admin email</label>
+                <input
+                  type="email"
+                  value={adminEmail}
+                  onChange={e => setAdminEmail(e.target.value)}
+                  placeholder="admin@example.com"
+                  required
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-amber-500/30 text-white"
+                />
               </div>
               <div>
                 <label className="block font-bold text-slate-300 mb-1">මුරපදය (Password)</label>
@@ -3712,7 +3731,7 @@ export default function CompleteTempleApp() {
               </div>
               <div>
                 <label className="block text-slate-300 mb-1">රිසිට්පතෙහි ඡායාරූපය (Slip Image)</label>
-                <input type="file" accept="image/*" onChange={e => handleFileUploadWithEditor(e, setDonorSlipImg)} required className="text-[10px] text-slate-400" />
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleDonationSlipFile} required className="text-[10px] text-slate-400" />
               </div>
               <button type="submit" className="w-full py-3 rounded-xl font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition">
                 📤 රිසිට්පත යොමු කරන්න
@@ -3822,6 +3841,7 @@ export default function CompleteTempleApp() {
                 <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">{selectedWinner.year}</span>
                 {selectedWinner.grade && <span className="text-xs font-bold text-amber-100/80">ශ්‍රේණිය {selectedWinner.grade}</span>}
               </div>
+              {selectedWinner.place && <p className="text-sm font-black text-amber-300">{selectedWinner.place}</p>}
               <h3 className="text-2xl font-black text-amber-400">{selectedWinner.name}</h3>
               <p className="text-sm leading-relaxed text-slate-200">{selectedWinner.achievement}</p>
               {isAdmin && canAccess('winners') && (

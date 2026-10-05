@@ -44,8 +44,19 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Supabase shared uploads
 
-Run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL Editor. It creates the public `gallery` table, the shared `site_content` table, the `temple-media` storage bucket, and policies that allow everyone to read published content while only signed-in Supabase users can upload, edit, or delete it.
+Run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL Editor. It creates the shared content and gallery tables, student-enrollment and donation-slip tables, the public `temple-media` bucket, a private `donation-slips` bucket, and their row-level security policies.
 
-Create the admin user in Supabase under **Authentication → Users**, then use that email and password in the website admin login. Main branding, posts, pages, categories, media settings, bank details, event settings, puja settings, and music tracks now sync through `site_content` after an authenticated admin edit. Browser localStorage remains as a fallback for offline/local use.
+Create each admin user in Supabase under **Authentication → Users**. In that user's **App Metadata**, set `admin_role` to `super_admin`, `editor`, or `dhamma_admin`, then sign in with that email and password. Do not put role values in User Metadata; users can edit that metadata themselves.
 
-If the admin panel is opened with the built-in local role password instead of a Supabase email login, edits remain in that browser only and cannot be shared with other devices. For shared updates, configure valid Supabase environment variables, run `supabase/schema.sql`, and sign in with the Supabase admin account.
+To set a role from the Supabase SQL Editor, replace the email and role below with the desired admin account and role:
+
+```sql
+update auth.users
+set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+  || '{"admin_role":"super_admin"}'::jsonb
+where email = 'admin@example.com';
+```
+
+Sign out and back in after changing the role so the new role is included in the Supabase session.
+
+Admin content changes sync to Supabase; they are not written to browser localStorage. Existing browser content may be read as a one-time legacy fallback when no cloud value exists, but a successful Supabase save is required for the changes to be shared. The admin dashboard shows cloud-sync status and any save errors. Donation slips are stored in a private bucket and only a super admin can review them. Student applications and their statuses are shared through Supabase.
