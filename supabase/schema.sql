@@ -6,14 +6,56 @@ create table if not exists public.gallery (
   title text not null,
   category text,
   image_url text not null,
+  description text not null default '',
+  page_key text not null default 'all',
   created_at timestamptz not null default now()
 );
+
+alter table public.gallery add column if not exists description text not null default '';
+alter table public.gallery add column if not exists page_key text not null default 'all';
 
 create table if not exists public.site_content (
   id text primary key,
   content jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.contact_content (
+  id text primary key,
+  posts jsonb not null default '[]'::jsonb,
+  ticker_text text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.student_enrollments (
+  id text primary key,
+  student_name text not null,
+  guardian_name text not null default '',
+  phone text not null,
+  grade text not null,
+  address text not null default '',
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  submitted_at text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.donation_slips (
+  id text primary key,
+  donor_name text not null,
+  amount text not null,
+  phone text not null,
+  slip_image_path text not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  submitted_at text not null,
+  created_at timestamptz not null default now()
+);
+
+grant select on public.site_content, public.contact_content, public.gallery to anon, authenticated;
+grant insert, update on public.site_content, public.contact_content to authenticated;
+grant insert, update, delete on public.gallery to authenticated;
+grant usage, select on sequence public.gallery_id_seq to authenticated;
+grant insert on public.student_enrollments, public.donation_slips to anon, authenticated;
+grant select, update on public.student_enrollments, public.donation_slips to authenticated;
 
 do $$
 begin
@@ -34,22 +76,87 @@ alter table public.site_content enable row level security;
 drop policy if exists "Public site content read access" on public.site_content;
 drop policy if exists "Authenticated site content insert access" on public.site_content;
 drop policy if exists "Authenticated site content update access" on public.site_content;
+drop policy if exists "Admin site content insert access" on public.site_content;
+drop policy if exists "Admin site content update access" on public.site_content;
 
 create policy "Public site content read access"
 on public.site_content for select
 to anon, authenticated
 using (true);
 
-create policy "Authenticated site content insert access"
+create policy "Admin site content insert access"
 on public.site_content for insert
 to authenticated
-with check (true);
+with check ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'));
 
-create policy "Authenticated site content update access"
+create policy "Admin site content update access"
 on public.site_content for update
 to authenticated
-using (true)
-with check (true);
+using ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'))
+with check ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'));
+
+alter table public.contact_content enable row level security;
+drop policy if exists "Public contact content read access" on public.contact_content;
+drop policy if exists "Admin contact content insert access" on public.contact_content;
+drop policy if exists "Admin contact content update access" on public.contact_content;
+
+create policy "Public contact content read access"
+on public.contact_content for select
+to anon, authenticated
+using (true);
+
+create policy "Admin contact content insert access"
+on public.contact_content for insert
+to authenticated
+with check ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'));
+
+create policy "Admin contact content update access"
+on public.contact_content for update
+to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'))
+with check ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'));
+
+alter table public.student_enrollments enable row level security;
+drop policy if exists "Public student enrollment submit access" on public.student_enrollments;
+drop policy if exists "Admin student enrollment read access" on public.student_enrollments;
+drop policy if exists "Admin student enrollment update access" on public.student_enrollments;
+
+create policy "Public student enrollment submit access"
+on public.student_enrollments for insert
+to anon, authenticated
+with check (status = 'pending');
+
+create policy "Admin student enrollment read access"
+on public.student_enrollments for select
+to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'dhamma_admin'));
+
+create policy "Admin student enrollment update access"
+on public.student_enrollments for update
+to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'dhamma_admin'))
+with check ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'dhamma_admin'));
+
+alter table public.donation_slips enable row level security;
+drop policy if exists "Public donation slip submit access" on public.donation_slips;
+drop policy if exists "Admin donation slip read access" on public.donation_slips;
+drop policy if exists "Admin donation slip update access" on public.donation_slips;
+
+create policy "Public donation slip submit access"
+on public.donation_slips for insert
+to anon, authenticated
+with check (status = 'pending' and slip_image_path like 'submissions/%');
+
+create policy "Admin donation slip read access"
+on public.donation_slips for select
+to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'admin_role') = 'super_admin');
+
+create policy "Admin donation slip update access"
+on public.donation_slips for update
+to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'admin_role') = 'super_admin')
+with check ((auth.jwt() -> 'app_metadata' ->> 'admin_role') = 'super_admin');
 
 alter table public.gallery enable row level security;
 
@@ -57,54 +164,119 @@ drop policy if exists "Public gallery read access" on public.gallery;
 drop policy if exists "Authenticated gallery insert access" on public.gallery;
 drop policy if exists "Authenticated gallery update access" on public.gallery;
 drop policy if exists "Authenticated gallery delete access" on public.gallery;
+drop policy if exists "Admin gallery insert access" on public.gallery;
+drop policy if exists "Admin gallery update access" on public.gallery;
+drop policy if exists "Admin gallery delete access" on public.gallery;
 
 create policy "Public gallery read access"
 on public.gallery for select
 to anon, authenticated
 using (true);
 
-create policy "Authenticated gallery insert access"
+create policy "Admin gallery insert access"
 on public.gallery for insert
 to authenticated
-with check (true);
+with check ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'));
 
-create policy "Authenticated gallery update access"
+create policy "Admin gallery update access"
 on public.gallery for update
 to authenticated
-using (true)
-with check (true);
+using ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'))
+with check ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'));
 
-create policy "Authenticated gallery delete access"
+create policy "Admin gallery delete access"
 on public.gallery for delete
 to authenticated
-using (true);
+using ((auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin'));
 
 insert into storage.buckets (id, name, public)
 values ('temple-media', 'temple-media', true)
-on conflict (id) do nothing;
+on conflict (id) do update set public = excluded.public;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('donation-slips', 'donation-slips', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "Public temple media read access" on storage.objects;
 drop policy if exists "Authenticated temple media upload access" on storage.objects;
 drop policy if exists "Authenticated temple media update access" on storage.objects;
 drop policy if exists "Authenticated temple media delete access" on storage.objects;
+drop policy if exists "Admin temple media upload access" on storage.objects;
+drop policy if exists "Admin temple media update access" on storage.objects;
+drop policy if exists "Admin temple media delete access" on storage.objects;
+drop policy if exists "Public donation slip upload access" on storage.objects;
+drop policy if exists "Admin donation slip read access" on storage.objects;
+drop policy if exists "Admin donation slip update access" on storage.objects;
+drop policy if exists "Admin donation slip delete access" on storage.objects;
 
 create policy "Public temple media read access"
 on storage.objects for select
 to anon, authenticated
 using (bucket_id = 'temple-media');
 
-create policy "Authenticated temple media upload access"
+create policy "Admin temple media upload access"
 on storage.objects for insert
 to authenticated
-with check (bucket_id = 'temple-media');
+with check (
+  bucket_id = 'temple-media'
+  and (auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin')
+);
 
-create policy "Authenticated temple media update access"
+create policy "Admin temple media update access"
 on storage.objects for update
 to authenticated
-using (bucket_id = 'temple-media')
-with check (bucket_id = 'temple-media');
+using (
+  bucket_id = 'temple-media'
+  and (auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin')
+)
+with check (
+  bucket_id = 'temple-media'
+  and (auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin')
+);
 
-create policy "Authenticated temple media delete access"
+create policy "Admin temple media delete access"
 on storage.objects for delete
 to authenticated
-using (bucket_id = 'temple-media');
+using (
+  bucket_id = 'temple-media'
+  and (auth.jwt() -> 'app_metadata' ->> 'admin_role') in ('super_admin', 'editor', 'dhamma_admin')
+);
+
+create policy "Public donation slip upload access"
+on storage.objects for insert
+to anon, authenticated
+with check (
+  bucket_id = 'donation-slips'
+  and (storage.foldername(name))[1] = 'submissions'
+);
+
+create policy "Admin donation slip read access"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'donation-slips'
+  and (auth.jwt() -> 'app_metadata' ->> 'admin_role') = 'super_admin'
+);
+
+create policy "Admin donation slip update access"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'donation-slips'
+  and (auth.jwt() -> 'app_metadata' ->> 'admin_role') = 'super_admin'
+)
+with check (
+  bucket_id = 'donation-slips'
+  and (auth.jwt() -> 'app_metadata' ->> 'admin_role') = 'super_admin'
+);
+
+create policy "Admin donation slip delete access"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'donation-slips'
+  and (auth.jwt() -> 'app_metadata' ->> 'admin_role') = 'super_admin'
+);

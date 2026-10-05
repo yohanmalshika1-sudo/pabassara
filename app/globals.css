@@ -124,6 +124,30 @@ form,
   box-shadow: var(--shadow);
 }
 
+@media (max-width: 640px) {
+  .winner-showcase > .winner-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .winner-showcase .winner-card {
+    width: 100%;
+    max-width: none;
+  }
+
+  .winner-showcase .winner-card > div:first-child {
+    height: 10rem;
+  }
+
+  .winner-showcase .winner-showcase-header {
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+  }
+}
+
 @keyframes temple-wallpaper-depth {
   0%, 100% { transform: scale(1.04) translate3d(0, 0, 0); }
   50% { transform: scale(1.12) translate3d(-1%, -1%, 0); }
